@@ -1,0 +1,119 @@
+name: bidflow-api
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: bidflow-app
+    volumes:
+      - .:/var/www/html
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - bidflow
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: bidflow-nginx
+    ports:
+      - "${APP_PORT:-8000}:80"
+    volumes:
+      - .:/var/www/html:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+    networks:
+      - bidflow
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: bidflow-postgres
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-bidflow}
+      POSTGRES_USER: ${DB_USERNAME:-bidflow}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+    ports:
+      - "${DB_FORWARD_PORT:-5433}:5432"
+    volumes:
+      - bidflow_postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-bidflow} -d ${DB_DATABASE:-bidflow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - bidflow
+
+  redis:
+    image: redis:7-alpine
+    container_name: bidflow-redis
+    ports:
+      - "${REDIS_FORWARD_PORT:-6380}:6379"
+    volumes:
+      - bidflow_redis_data:/data
+    networks:
+      - bidflow
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: bidflow-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-bidflow}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-secret}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
+    ports:
+      - "${RABBITMQ_FORWARD_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - bidflow_rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - bidflow
+
+  reverb:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: bidflow-reverb
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    env_file:
+      - .env
+    ports:
+      - "${REVERB_FORWARD_PORT:-8080}:8080"
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - app
+    networks:
+      - bidflow
+
+  horizon:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: bidflow-horizon
+    command: php artisan horizon
+    env_file:
+      - .env
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - app
+      - redis
+    networks:
+      - bidflow
+
+networks:
+  bidflow:
+    driver: bridge
+
+volumes:
+  bidflow_postgres_data:
+  bidflow_redis_data:
+  bidflow_rabbitmq_data:
