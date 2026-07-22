@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Shared\Application\Bus\CommandBus;
+use App\Shared\Application\Bus\QueryBus;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -11,7 +13,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(CommandBus::class);
+        $this->app->singleton(QueryBus::class);
     }
 
     /**

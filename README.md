@@ -58,7 +58,35 @@ src/
 
 ### Diagrama de camadas
 
-*(pendente — Fase 1)*
+Fluxo de dependência dentro de um módulo (Presentation → Application → Domain; Infrastructure → Domain). `Shared\Domain` é o único ponto de contato permitido entre módulos — nunca uma seta direta de `Modules\X` para `Modules\Y`.
+
+```mermaid
+flowchart TB
+    subgraph ModuleA["Módulo (ex.: Auction)"]
+        Presentation["Presentation<br/>Controllers · Requests · Resources"]
+        Application["Application<br/>UseCases · Commands · Queries · DTOs"]
+        Domain["Domain<br/>Aggregates · Entities · Events · ValueObjects<br/>Repositories (interfaces)"]
+        Infrastructure["Infrastructure<br/>Eloquent Repositories · Listeners · Broadcast · Consumers"]
+
+        Presentation --> Application
+        Application --> Domain
+        Infrastructure -.implementa.-> Domain
+    end
+
+    subgraph Shared["Shared kernel"]
+        SharedDomain["Shared\\Domain<br/>ValueObjects (Money, DateRange, AggregateId)<br/>Contracts (UserIdentity, SellerLookup, BidderLookup)<br/>Events (DomainEvent, IntegrationEvent)"]
+        SharedInfra["Shared\\Infrastructure<br/>MessageBroker (RabbitMQ) · Database"]
+        SharedApp["Shared\\Application<br/>CommandBus · QueryBus"]
+    end
+
+    Domain -->|só através de contratos| SharedDomain
+    Application --> SharedApp
+    Infrastructure --> SharedInfra
+
+    ModuleB["Outro módulo (ex.: User)"] -.implementa contratos de.-> SharedDomain
+```
+
+`Shared\Domain` não depende de `Illuminate\*` nem de exceções genéricas — ver [ADR-0003](docs/adr/0003-shared-kernel-contracts.md) para o racional completo do shared kernel.
 
 ### Fluxo de lance
 
@@ -150,5 +178,6 @@ A API fica disponível em `http://localhost:8000` (porta configurável via `APP_
 |---|---|
 | [0001](docs/adr/0001-monolito-modular.md) | Monólito modular com vertical slices |
 | [0002](docs/adr/0002-clean-architecture-por-modulo.md) | Camadas de Clean Architecture por módulo |
+| [0003](docs/adr/0003-shared-kernel-contracts.md) | Padrão de contrato do shared kernel |
 
 *(demais ADRs adicionadas conforme as fases avançam)*
