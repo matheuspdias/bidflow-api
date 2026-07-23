@@ -11,6 +11,7 @@ use App\Modules\Auction\Domain\ValueObjects\AuctionStatus;
 use App\Modules\Auction\Infrastructure\Persistence\Models\Auction as AuctionModel;
 use App\Shared\Domain\ValueObjects\DateRange;
 use App\Shared\Domain\ValueObjects\Money;
+use DateTimeImmutable;
 
 final class EloquentAuctionRepository implements AuctionRepository
 {
@@ -19,6 +20,15 @@ final class EloquentAuctionRepository implements AuctionRepository
         $model = AuctionModel::find($id);
 
         return $model ? $this->toDomain($model) : null;
+    }
+
+    public function activeIdsEndingBefore(DateTimeImmutable $moment): array
+    {
+        return AuctionModel::query()
+            ->where('status', AuctionStatus::ACTIVE->value)
+            ->where('ends_at', '<=', $moment)
+            ->pluck('id')
+            ->all();
     }
 
     public function findByIdForUpdate(int $id): ?Auction

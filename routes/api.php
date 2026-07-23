@@ -7,6 +7,7 @@ use App\Modules\Auction\Presentation\Controllers\CategoriesController;
 use App\Modules\Auth\Presentation\Controllers\LoginController;
 use App\Modules\Auth\Presentation\Controllers\LogoutController;
 use App\Modules\Auth\Presentation\Controllers\RegisterController;
+use App\Modules\Notification\Presentation\Controllers\NotificationsController;
 use App\Modules\User\Presentation\Controllers\ActivityStubController;
 use App\Modules\User\Presentation\Controllers\AvatarController;
 use App\Modules\User\Presentation\Controllers\ProfileController;
@@ -32,6 +33,11 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/profile/auctions/won', [ActivityStubController::class, 'auctionsWon'])->middleware('abilities:profile:read');
     Route::get('/profile/auctions/lost', [ActivityStubController::class, 'auctionsLost'])->middleware('abilities:profile:read');
     Route::get('/rankings', [ActivityStubController::class, 'rankings'])->middleware('abilities:profile:read');
+
+    Route::middleware('abilities:notifications:read')->group(function (): void {
+        Route::get('/notifications', [NotificationsController::class, 'index']);
+        Route::post('/notifications/{id}/read', [NotificationsController::class, 'markAsRead']);
+    });
 
     Route::middleware('abilities:auction:manage')->group(function (): void {
         Route::post('/auctions', [AuctionsController::class, 'store']);

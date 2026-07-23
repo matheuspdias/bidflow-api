@@ -237,6 +237,60 @@ services:
     networks:
       - bidflow
 
+  # Fase 11: not a RabbitMQ consumer — a clock, like auction-timer. Ticks
+  # every 5 seconds, closing ACTIVE auctions whose ends_at has passed and
+  # determining the winner (see ADR-0015).
+  auction-closer:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: bidflow-auction-closer
+    command: php artisan auctions:close-ended
+    env_file:
+      - .env
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - app
+    networks:
+      - bidflow
+
+  # Fase 11: reacts to auction.auction_closed and broadcasts auction.ended.
+  auction-ended-consumer:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: bidflow-auction-ended-consumer
+    command: php artisan consume:auction-ended-broadcast
+    env_file:
+      - .env
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - app
+      - rabbitmq
+      - reverb
+    networks:
+      - bidflow
+
+  # Fase 11: reacts to auction.auction_closed and notifies the winner, if
+  # any (email queued via Horizon — see ADR-0015).
+  auction-won-notification-consumer:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: bidflow-auction-won-notification-consumer
+    command: php artisan consume:auction-won-notification
+    env_file:
+      - .env
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - app
+      - rabbitmq
+    networks:
+      - bidflow
+
 networks:
   bidflow:
     driver: bridge

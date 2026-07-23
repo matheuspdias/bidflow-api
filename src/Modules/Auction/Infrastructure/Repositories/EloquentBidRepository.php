@@ -26,6 +26,23 @@ final class EloquentBidRepository implements BidRepository
         return $bid;
     }
 
+    public function findById(int $id): ?Bid
+    {
+        $model = BidModel::find($id);
+
+        if ($model === null) {
+            return null;
+        }
+
+        return Bid::reconstitute(
+            id: $model->id,
+            auctionId: $model->auction_id,
+            bidderId: $model->bidder_id,
+            amount: Money::of($model->amount, config('money.default_currency')),
+            placedAt: $model->created_at->toDateTimeImmutable(),
+        );
+    }
+
     public function hasBidderBidOn(int $auctionId, int $bidderId): bool
     {
         return BidModel::query()

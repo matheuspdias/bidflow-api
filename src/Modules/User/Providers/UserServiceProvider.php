@@ -6,6 +6,7 @@ namespace App\Modules\User\Providers;
 
 use App\Modules\User\Domain\Repositories\UserRepository;
 use App\Modules\User\Infrastructure\Persistence\Adapters\SanctumTokenIssuer;
+use App\Modules\User\Infrastructure\Persistence\Adapters\UserEmailLookupAdapter;
 use App\Modules\User\Infrastructure\Persistence\Adapters\UserIdentityAdapter;
 use App\Modules\User\Infrastructure\Persistence\Adapters\UserLookupAdapter;
 use App\Modules\User\Infrastructure\Repositories\EloquentUserRepository;
@@ -13,6 +14,7 @@ use App\Shared\Domain\Contracts\BidderLookup;
 use App\Shared\Domain\Contracts\SellerLookup;
 use App\Shared\Domain\Contracts\TokenIssuer;
 use App\Shared\Domain\Contracts\UserAuthenticator;
+use App\Shared\Domain\Contracts\UserEmailLookup;
 use App\Shared\Domain\Contracts\UserIdentity;
 use App\Shared\Domain\Contracts\UserRegistrar;
 use Illuminate\Contracts\Foundation\Application;
@@ -29,6 +31,7 @@ class UserServiceProvider extends ServiceProvider
         $this->app->bind(SellerLookup::class, UserLookupAdapter::class);
         $this->app->bind(BidderLookup::class, UserLookupAdapter::class);
         $this->app->bind(TokenIssuer::class, SanctumTokenIssuer::class);
+        $this->app->bind(UserEmailLookup::class, UserEmailLookupAdapter::class);
 
         // Lets other modules depend on "the current user" via the Shared
         // contract, never on Modules\User's own Eloquent model directly.

@@ -10,6 +10,8 @@ interface BidRepository
 {
     public function create(Bid $bid): Bid;
 
+    public function findById(int $id): ?Bid;
+
     public function hasBidderBidOn(int $auctionId, int $bidderId): bool;
 
     /**

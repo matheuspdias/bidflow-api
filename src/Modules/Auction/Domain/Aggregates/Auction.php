@@ -6,6 +6,7 @@ namespace App\Modules\Auction\Domain\Aggregates;
 
 use App\Modules\Auction\Domain\Entities\Bid;
 use App\Modules\Auction\Domain\Events\AuctionCancelled;
+use App\Modules\Auction\Domain\Events\AuctionClosed;
 use App\Modules\Auction\Domain\Events\AuctionExtended;
 use App\Modules\Auction\Domain\Events\AuctionStarted;
 use App\Modules\Auction\Domain\Events\BidPlaced;
@@ -162,6 +163,32 @@ final class Auction
 
         $this->status = AuctionStatus::CANCELLED;
         $this->record(new AuctionCancelled($this->requireId(), new DateTimeImmutable()));
+    }
+
+    /**
+     * Transitions ACTIVE to CLOSED and determines the winner — called only
+     * by the scheduled closing command, never a direct HTTP action (see
+     * README's domain model section). $winnerId/$winningAmount describe the
+     * current highest bid, if any; the caller resolves them via BidRepository
+     * since the aggregate itself has no bidder identity beyond a bid id.
+     *
+     * A reserve_price that the highest bid never reached means no sale: the
+     * event still fires (the auction still closes), but with a null winner.
+     */
+    public function close(?int $winnerId, ?Money $winningAmount): void
+    {
+        if ($this->status !== AuctionStatus::ACTIVE) {
+            throw InvalidAuctionStatusTransitionException::from($this->status, AuctionStatus::CLOSED);
+        }
+
+        $this->status = AuctionStatus::CLOSED;
+
+        $reserveMet = $this->reservePrice === null
+            || ($winningAmount !== null && $winningAmount->isGreaterThanOrEqualTo($this->reservePrice));
+
+        $finalWinnerId = $reserveMet ? $winnerId : null;
+
+        $this->record(new AuctionClosed($this->requireId(), $finalWinnerId, $this->currentValue, new DateTimeImmutable()));
     }
 
     /**

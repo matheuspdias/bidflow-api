@@ -78,6 +78,20 @@ Disparado por: `BroadcastAuctionExtendedConsumer` (Fase 10), reagindo ao integra
 }
 ```
 
+## `auction.ended`
+
+O leilão fechou — com ou sem vencedor. `winner_id` é `null` quando ninguém deu lance ou quando o `reserve_price` nunca foi atingido (`Auction::close()` funde os dois casos no mesmo resultado: sem venda).
+
+Disparado por: `BroadcastAuctionEndedConsumer` (Fase 11), reagindo ao integration event `auction.auction_closed`, publicado por `CloseAuctionUseCase` — chamado por `AuctionClosingCommand`, um processo próprio (como o timer) que fecha leilões `ACTIVE` cujo `ends_at` já passou. Ver ADR-0015.
+
+```json
+{
+    "auction_id": 33,
+    "winner_id": 82,
+    "final_price": "130.00"
+}
+```
+
 ## Autenticação do canal
 
 `POST /broadcasting/auth` (Bearer token Sanctum — **não** cookie/sessão, ver ADR-0011) com `channel_name` (`presence-auction.{id}`) e `socket_id`. Qualquer usuário autenticado pode se inscrever — a resposta inclui `channel_data` com a classificação de papel daquele usuário *para aquele leilão específico* (ADR-0012):

@@ -2,6 +2,7 @@
 
 use App\Modules\Auction\Domain\Aggregates\Auction;
 use App\Modules\Auction\Domain\Events\AuctionCancelled;
+use App\Modules\Auction\Domain\Events\AuctionClosed;
 use App\Modules\Auction\Domain\Events\AuctionExtended;
 use App\Modules\Auction\Domain\Events\AuctionStarted;
 use App\Modules\Auction\Domain\Events\BidPlaced;
@@ -310,3 +311,80 @@ test('extendIfWithinAntiSnipingWindow stops once maxExtensions is reached', func
     expect($extended)->toBeFalse()
         ->and($auction->extensionsCount())->toBe(3);
 });
+
+test('close declares the highest bidder the winner when there is no reserve price', function () {
+    $auction = makeActiveAuctionEndingAt(new DateTimeImmutable('-1 second'));
+    $auction->placeBid(2, Money::of('110.00', 'USD'), true);
+    $auction->pullDomainEvents();
+
+    $auction->close(2, Money::of('110.00', 'USD'));
+
+    expect($auction->status())->toBe(AuctionStatus::CLOSED);
+
+    $events = $auction->pullDomainEvents();
+    expect($events)->toHaveCount(1)
+        ->and($events[0])->toBeInstanceOf(AuctionClosed::class)
+        ->and($events[0]->winnerId)->toBe(2)
+        ->and($events[0]->finalPrice->equals(Money::of('110.00', 'USD')))->toBeTrue();
+});
+
+test('close declares no winner when nobody bid', function () {
+    $auction = makeActiveAuctionEndingAt(new DateTimeImmutable('-1 second'));
+
+    $auction->close(null, null);
+
+    $events = $auction->pullDomainEvents();
+    expect($events[0]->winnerId)->toBeNull();
+});
+
+test('close declares no winner when the reserve price was never met', function () {
+    $auction = Auction::schedule(
+        sellerId: 1,
+        categoryId: 1,
+        name: 'Vintage Watch',
+        description: 'A fine vintage watch.',
+        startingBid: Money::of('100.00', 'USD'),
+        minimumIncrement: Money::of('10.00', 'USD'),
+        buyNowPrice: null,
+        reservePrice: Money::of('500.00', 'USD'),
+        schedule: DateRange::of(new DateTimeImmutable('-1 hour'), new DateTimeImmutable('-1 second')),
+    );
+    $auction->assignId(1);
+    $auction->activate();
+    $auction->placeBid(2, Money::of('110.00', 'USD'), true);
+    $auction->pullDomainEvents();
+
+    $auction->close(2, Money::of('110.00', 'USD'));
+
+    $events = $auction->pullDomainEvents();
+    expect($events[0]->winnerId)->toBeNull()
+        ->and($events[0]->finalPrice->equals(Money::of('110.00', 'USD')))->toBeTrue();
+});
+
+test('close declares a winner when the bid meets the reserve price exactly', function () {
+    $auction = Auction::schedule(
+        sellerId: 1,
+        categoryId: 1,
+        name: 'Vintage Watch',
+        description: 'A fine vintage watch.',
+        startingBid: Money::of('100.00', 'USD'),
+        minimumIncrement: Money::of('10.00', 'USD'),
+        buyNowPrice: null,
+        reservePrice: Money::of('110.00', 'USD'),
+        schedule: DateRange::of(new DateTimeImmutable('-1 hour'), new DateTimeImmutable('-1 second')),
+    );
+    $auction->assignId(1);
+    $auction->activate();
+    $auction->placeBid(2, Money::of('110.00', 'USD'), true);
+    $auction->pullDomainEvents();
+
+    $auction->close(2, Money::of('110.00', 'USD'));
+
+    expect($auction->pullDomainEvents()[0]->winnerId)->toBe(2);
+});
+
+test('close rejects an auction that is not ACTIVE', function () {
+    $auction = makeScheduledAuction();
+
+    $auction->close(null, null);
+})->throws(InvalidAuctionStatusTransitionException::class);
