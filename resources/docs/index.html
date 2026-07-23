@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BidFlow API — Documentação</title>
+    <meta name="robots" content="noindex">
+    <style>
+        body { margin: 0; padding: 0; }
+    </style>
+</head>
+<body>
+    <div id="redoc-container"></div>
+    <script src="/vendor/redoc/redoc.standalone.js"></script>
+    <script>
+        Redoc.init('/docs/openapi.yaml', {
+            theme: {
+                colors: {
+                    primary: { main: '#a8671a' },
+                },
+                typography: {
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                    code: { fontFamily: 'ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace' },
+                },
+            },
+        }, document.getElementById('redoc-container'));
+    </script>
+</body>
+</html>

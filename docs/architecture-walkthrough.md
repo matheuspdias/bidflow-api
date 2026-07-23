@@ -48,5 +48,5 @@ Os dois seguem o mesmo par de caminhos que o resto do sistema: uma chamada REST 
 
 - [README.md](../README.md) — stack, como rodar, contratos de cada endpoint, estrutura de testes.
 - [docs/websocket-events.md](websocket-events.md) — payload exato de cada evento WebSocket.
-- [docs/openapi.yaml](openapi.yaml) — a API REST inteira, machine-readable.
+- [docs/openapi.yaml](openapi.yaml) — a API REST inteira, machine-readable. `GET /docs` na aplicação rodando serve isso como página (Redoc, self-hosted — [ADR-0020](adr/0020-self-hosted-api-reference.md)).
 - `docs/adr/` — o porquê de cada decisão, na ordem em que foram tomadas.

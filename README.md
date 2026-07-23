@@ -4,7 +4,7 @@ Backend de um sistema de leilão em tempo real, construído como projeto de port
 
 O frontend (React) é um repositório separado — este projeto cobre apenas a API e a infraestrutura de eventos/WebSocket que a alimentam.
 
-> Este README foi escrito incrementalmente, fase a fase, junto com o código — 16 fases, 19 ADRs, cada uma testada, documentada e validada com infraestrutura real antes de seguir para a próxima (ver o histórico de commits para o estado exato de cada fase). Para uma leitura guiada do sistema inteiro em vez de seção por seção, veja [docs/architecture-walkthrough.md](docs/architecture-walkthrough.md); para a API REST machine-readable, [docs/openapi.yaml](docs/openapi.yaml).
+> Este README foi escrito incrementalmente, fase a fase, junto com o código — 16 fases, 20 ADRs, cada uma testada, documentada e validada com infraestrutura real antes de seguir para a próxima (ver o histórico de commits para o estado exato de cada fase). Para uma leitura guiada do sistema inteiro em vez de seção por seção, veja [docs/architecture-walkthrough.md](docs/architecture-walkthrough.md); para a API REST, `GET /docs` (Redoc, self-hosted) ou [docs/openapi.yaml](docs/openapi.yaml) diretamente.
 
 ## Objetivo
 
@@ -27,7 +27,7 @@ Mostrar, em um sistema funcional de leilões com lances em tempo real, como estr
 | Autenticação | Laravel Sanctum (token, não cookie-SPA) |
 | Testes | Pest (+ plugins Laravel, Arch, Faker) |
 | Análise estática | Larastan / PHPStan (nível 6+) |
-| Documentação de API | OpenAPI 3.0 escrito à mão ([docs/openapi.yaml](docs/openapi.yaml)) |
+| Documentação de API | OpenAPI 3.0 escrito à mão ([docs/openapi.yaml](docs/openapi.yaml)), servido em `/docs` via Redoc self-hosted |
 | Infraestrutura local | Docker Compose (customizado, não Sail) |
 
 Ver [ADR-0009](docs/adr/0009-redis-horizon-vs-rabbitmq.md) para a justificativa da separação entre filas internas (Redis/Horizon) e integration events (RabbitMQ).
@@ -405,5 +405,6 @@ Cada consumer declara sua própria fila (durável, com `x-dead-letter-exchange` 
 | [0017](docs/adr/0017-reconnection-gap-fill.md) | Reconexão via gap-fill por id de lance |
 | [0018](docs/adr/0018-business-dashboard.md) | Dashboard administrativo de negócio |
 | [0019](docs/adr/0019-technical-dashboard.md) | Dashboard técnico |
+| [0020](docs/adr/0020-self-hosted-api-reference.md) | Documentação da API self-hosted (Redoc, sem CDN) |
 
 *(demais ADRs adicionadas conforme as fases avançam)*
