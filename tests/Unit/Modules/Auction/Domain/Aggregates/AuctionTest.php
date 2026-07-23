@@ -186,12 +186,30 @@ test('placeBid accepts a bid exactly at the minimum acceptable amount', function
         ->and($bid->bidderId())->toBe(2)
         ->and($bid->amount()->equals(Money::of('110.00', 'USD')))->toBeTrue();
 
+    // placeBid() itself raises no event yet — the bid has no id until the
+    // repository persists it. recordBidPlaced() is what the use case calls
+    // once that id is known.
+    expect($auction->pullDomainEvents())->toBe([]);
+
+    $bid->assignId(99);
+    $auction->recordBidPlaced($bid);
+
     $events = $auction->pullDomainEvents();
 
     expect($events)->toHaveCount(1)
         ->and($events[0])->toBeInstanceOf(BidPlaced::class)
+        ->and($events[0]->bidId)->toBe(99)
         ->and($events[0]->bidderId)->toBe(2);
 });
+
+test('recordBidPlaced refuses a bid that has not been persisted yet', function () {
+    $auction = makeScheduledAuction();
+    $auction->activate();
+
+    $bid = $auction->placeBid(2, Money::of('110.00', 'USD'), true);
+
+    $auction->recordBidPlaced($bid);
+})->throws(LogicException::class);
 
 test('placeBid does not increment participantCount for a returning bidder', function () {
     $auction = makeScheduledAuction();

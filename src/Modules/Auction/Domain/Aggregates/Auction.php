@@ -193,11 +193,19 @@ final class Auction
             $this->participantCount++;
         }
 
-        $bid = Bid::place($this->requireId(), $bidderId, $amount);
+        return Bid::place($this->requireId(), $bidderId, $amount);
+    }
 
-        $this->record(new BidPlaced($this->requireId(), $bidderId, $amount, new DateTimeImmutable()));
+    /**
+     * Raises BidPlaced once the bid has a persisted id — placeBid() itself
+     * can't do this, since the id is only assigned by the repository after
+     * the INSERT, which happens after placeBid() returns.
+     */
+    public function recordBidPlaced(Bid $bid): void
+    {
+        $bidId = $bid->id() ?? throw new LogicException('Cannot record BidPlaced for a bid that has not been persisted yet.');
 
-        return $bid;
+        $this->record(new BidPlaced($this->requireId(), $bidId, $bid->bidderId(), $bid->amount(), $bid->placedAt()));
     }
 
     public function markHighestBid(int $bidId): void

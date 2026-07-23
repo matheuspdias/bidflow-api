@@ -12,6 +12,7 @@ final class BidPlaced implements DomainEvent
 {
     public function __construct(
         public readonly int $auctionId,
+        public readonly int $bidId,
         public readonly int $bidderId,
         public readonly Money $amount,
         private readonly DateTimeImmutable $occurredAt,

@@ -74,7 +74,8 @@ final class PlaceBidUseCase
             }
 
             $bid = $this->bids->create($bid);
-            $auction->markHighestBid($bid->id());
+            $auction->recordBidPlaced($bid);
+            $auction->markHighestBid((int) $bid->id());
             $this->auctions->save($auction);
 
             $this->auditLogs->record($auctionId, $bidderId, $amount, $ipAddress, $userAgent, 'accepted', null);

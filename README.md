@@ -130,7 +130,27 @@ sequenceDiagram
 
 ### Fluxo de eventos (domain → integration → broadcast)
 
-*(pendente — Fase 5)*
+Ver [ADR-0008](docs/adr/0008-domain-vs-integration-events.md) (domain vs integration events) e [ADR-0009](docs/adr/0009-redis-horizon-vs-rabbitmq.md) (RabbitMQ vs Redis/Horizon).
+
+```mermaid
+flowchart LR
+    A["Aggregate Auction<br/>record(DomainEvent)"] -->|"pullDomainEvents()<br/>(só depois do commit)"| B["event($domainEvent)"]
+    B --> C["Infrastructure\\Listeners<br/>Publish*IntegrationEvent"]
+    C -->|"fromDomainEvent()"| D["Infrastructure\\Events<br/>*IntegrationEvent"]
+    D --> E["SafeIntegrationEventPublisher"]
+    E -->|"sucesso"| F[("RabbitMQ<br/>exchange domain_events (topic)")]
+    E -->|"falha"| G[("failed_integration_events<br/>(replay manual)")]
+    F -.->|"Fase 6"| H["Consumers<br/>(stats, histórico, notificação, broadcast)"]
+```
+
+- Domain events (`Modules\Auction\Domain\Events`) só existem dentro do processo; integration events (`Modules\Auction\Infrastructure\Events`) são a tradução serializável que atravessa o RabbitMQ — nunca o caminho inverso.
+- `php artisan rabbitmq:setup` declara o exchange topic `domain_events` e seu dead-letter exchange (`domain_events.dlx`) — idempotente, roda a cada deploy.
+- Routing key: `{módulo}.{evento_snake_case}` (`auction.bid_placed`, `auction.auction_started`, `auction.auction_cancelled`).
+- Falha ao publicar nunca reverte o lance nem propaga exceção — vira uma linha em `failed_integration_events` (ver ADR-0008).
+
+### Estratégia WebSocket
+
+*(pendente — Fase 7)*
 
 ### Estratégia WebSocket
 
@@ -265,5 +285,7 @@ A API fica disponível em `http://localhost:8000` (porta configurável via `APP_
 | [0005](docs/adr/0005-auction-lifecycle.md) | Ciclo de vida do leilão (state machine) |
 | [0006](docs/adr/0006-pessimistic-locking-bid-concurrency.md) | Lock pessimista para concorrência de lances |
 | [0007](docs/adr/0007-bid-idempotency-strategy.md) | Estratégia de idempotency key para lances |
+| [0008](docs/adr/0008-domain-vs-integration-events.md) | Domain events vs integration events |
+| [0009](docs/adr/0009-redis-horizon-vs-rabbitmq.md) | Redis + Horizon (jobs internos) vs RabbitMQ (integration events) |
 
 *(demais ADRs adicionadas conforme as fases avançam)*

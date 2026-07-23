@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Shared\Application\Bus\CommandBus;
 use App\Shared\Application\Bus\QueryBus;
+use App\Shared\Infrastructure\MessageBroker\Console\RabbitMqSetupCommand;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -31,5 +32,9 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('bid-placement', function ($request) {
             return Limit::perMinute(20)->by($request->user()->id ?? $request->ip());
         });
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([RabbitMqSetupCommand::class]);
+        }
     }
 }
