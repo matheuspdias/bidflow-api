@@ -142,7 +142,20 @@ Disparado por: `BroadcastTechnicalMetricsCommand` (Fase 15), a cada 5 segundos.
 
 `role` é um de `seller` (dono do leilão), `bidder` (já deu pelo menos um lance nele) ou `viewer` (nenhum dos dois). É por leilão, não um papel global do usuário — o vendedor do leilão A é apenas `viewer` no canal do leilão B.
 
-## Pendente (fases futuras)
+## `notification.created` (canal `private-App.Models.User.{id}`)
 
-- `auction.ended` — leilão encerrado, com ou sem vencedor (Fase 11).
-- `notification.created` — nova notificação para o usuário, canal `private-user.{id}` (Fase 11).
+O único evento deste documento por **usuário**, não por leilão nem um dashboard — uma notificação nova (`outbid`, `auction_won`) foi criada para quem está com a tela aberta. `data` tem o mesmo formato de payload que o e-mail correspondente usa (ver `NotificationMail`).
+
+Disparado por: `NotificationDispatcherAdapter::dispatch()` (Fase 11) — direto, sem RabbitMQ: já roda dentro de um consumer (`SendBidNotificationConsumer`/`SendWonNotificationConsumer`) reagindo a um integration event, o mesmo raciocínio de `BidPlacedBroadcastEvent` usar `ShouldBroadcastNow` (ADR-0011). Canal `private-App.Models.User.{id}`, registrado desde a Fase 2.
+
+```json
+{
+    "id": 42,
+    "type": "outbid",
+    "data": {
+        "auction_id": 33,
+        "auction_name": "Vintage Camera",
+        "new_amount": "130.00"
+    }
+}
+```

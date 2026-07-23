@@ -4,7 +4,7 @@ Backend de um sistema de leilão em tempo real, construído como projeto de port
 
 O frontend (React) é um repositório separado — este projeto cobre apenas a API e a infraestrutura de eventos/WebSocket que a alimentam.
 
-> Este README é escrito incrementalmente, fase a fase, junto com o código. Seções marcadas como pendentes serão preenchidas conforme o respectivo módulo é construído — veja o [índice de ADRs](#índice-de-adrs) e o histórico de commits para o estado exato de cada fase.
+> Este README foi escrito incrementalmente, fase a fase, junto com o código — 16 fases, 19 ADRs, cada uma testada, documentada e validada com infraestrutura real antes de seguir para a próxima (ver o histórico de commits para o estado exato de cada fase). Para uma leitura guiada do sistema inteiro em vez de seção por seção, veja [docs/architecture-walkthrough.md](docs/architecture-walkthrough.md); para a API REST machine-readable, [docs/openapi.yaml](docs/openapi.yaml).
 
 ## Objetivo
 
@@ -27,14 +27,14 @@ Mostrar, em um sistema funcional de leilões com lances em tempo real, como estr
 | Autenticação | Laravel Sanctum (token, não cookie-SPA) |
 | Testes | Pest (+ plugins Laravel, Arch, Faker) |
 | Análise estática | Larastan / PHPStan (nível 6+) |
-| Documentação de API | Scramble (OpenAPI 3.1 gerado a partir do código) |
+| Documentação de API | OpenAPI 3.0 escrito à mão ([docs/openapi.yaml](docs/openapi.yaml)) |
 | Infraestrutura local | Docker Compose (customizado, não Sail) |
 
 Ver [ADR-0009](docs/adr/0009-redis-horizon-vs-rabbitmq.md) para a justificativa da separação entre filas internas (Redis/Horizon) e integration events (RabbitMQ).
 
 ## Arquitetura
 
-*(Seção consolidada progressivamente; ver também os diagramas específicos linkados nas ADRs de cada fase.)*
+Ver também [docs/architecture-walkthrough.md](docs/architecture-walkthrough.md) para uma leitura em ordem do sistema inteiro, e as ADRs de cada fase para o racional específico de cada diagrama abaixo.
 
 ### Estrutura de módulos
 
@@ -344,7 +344,7 @@ A API fica disponível em `http://localhost:8000` (porta configurável via `APP_
 | `auction-stats-consumer` | Consumer RabbitMQ: estatísticas de lance (Redis) | — |
 | `bid-history-consumer` | Consumer RabbitMQ: read model `bid_history` | — |
 | `bid-notification-consumer` | Consumer RabbitMQ: notifica o bidder superado (`outbid` — Fase 11) | — |
-| `bid-broadcast-consumer` | Consumer RabbitMQ: broadcast WebSocket (stub — Fase 7) | — |
+| `bid-broadcast-consumer` | Consumer RabbitMQ: broadcast WebSocket (`bid.placed`/`auction.updated` — Fase 7) | — |
 | `viewer-count-consumer` | Consumer RabbitMQ: contagem de espectadores ao vivo (`viewers.updated` — Fase 8) | — |
 | `auction-extended-consumer` | Consumer RabbitMQ: broadcast de extensão por anti-sniping (`auction.extended` — Fase 10) | — |
 | `auction-timer` | Não é consumer RabbitMQ — um relógio. Transmite `timer.updated` a cada segundo para leilões perto do fim (Fase 10) | — |
