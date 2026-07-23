@@ -7,6 +7,7 @@ use App\Modules\Auction\Presentation\Controllers\CategoriesController;
 use App\Modules\Auth\Presentation\Controllers\LoginController;
 use App\Modules\Auth\Presentation\Controllers\LogoutController;
 use App\Modules\Auth\Presentation\Controllers\RegisterController;
+use App\Modules\Dashboard\Presentation\Controllers\BusinessDashboardController;
 use App\Modules\Notification\Presentation\Controllers\NotificationsController;
 use App\Modules\User\Presentation\Controllers\ActivityController;
 use App\Modules\User\Presentation\Controllers\AvatarController;
@@ -33,6 +34,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/profile/auctions/won', [ActivityController::class, 'auctionsWon'])->middleware('abilities:profile:read');
     Route::get('/profile/auctions/lost', [ActivityController::class, 'auctionsLost'])->middleware('abilities:profile:read');
     Route::get('/rankings', [ActivityController::class, 'rankings'])->middleware('abilities:profile:read');
+
+    Route::get('/dashboard/business', [BusinessDashboardController::class, 'show'])->middleware('abilities:dashboard:read');
 
     Route::middleware('abilities:notifications:read')->group(function (): void {
         Route::get('/notifications', [NotificationsController::class, 'index']);

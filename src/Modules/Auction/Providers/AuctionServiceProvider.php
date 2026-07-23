@@ -15,6 +15,7 @@ use App\Modules\Auction\Domain\Repositories\AuctionRepository;
 use App\Modules\Auction\Domain\Repositories\BidAuditLogRepository;
 use App\Modules\Auction\Domain\Repositories\BidRepository;
 use App\Modules\Auction\Infrastructure\Adapters\BidHistoryLookupAdapter;
+use App\Modules\Auction\Infrastructure\Adapters\BusinessMetricsLookupAdapter;
 use App\Modules\Auction\Infrastructure\Adapters\BuyerRankingLookupAdapter;
 use App\Modules\Auction\Infrastructure\Adapters\WonLostAuctionsLookupAdapter;
 use App\Modules\Auction\Infrastructure\Console\AuctionClosingCommand;
@@ -41,6 +42,7 @@ use App\Modules\Auction\Infrastructure\Repositories\EloquentAuctionRepository;
 use App\Modules\Auction\Infrastructure\Repositories\EloquentBidAuditLogRepository;
 use App\Modules\Auction\Infrastructure\Repositories\EloquentBidRepository;
 use App\Shared\Domain\Contracts\BidHistoryLookup;
+use App\Shared\Domain\Contracts\BusinessMetricsLookup;
 use App\Shared\Domain\Contracts\BuyerRankingLookup;
 use App\Shared\Domain\Contracts\WonLostAuctionsLookup;
 use Illuminate\Support\Facades\Event;
@@ -59,6 +61,7 @@ class AuctionServiceProvider extends ServiceProvider
         $this->app->bind(BidHistoryLookup::class, BidHistoryLookupAdapter::class);
         $this->app->bind(WonLostAuctionsLookup::class, WonLostAuctionsLookupAdapter::class);
         $this->app->bind(BuyerRankingLookup::class, BuyerRankingLookupAdapter::class);
+        $this->app->bind(BusinessMetricsLookup::class, BusinessMetricsLookupAdapter::class);
     }
 
     public function boot(): void

@@ -36,3 +36,14 @@ Broadcast::channel('auction.{auctionId}', function ($user, int $auctionId) {
 
     return ['id' => (int) $user->id, 'role' => $role];
 });
+
+/**
+ * Business dashboard metrics (Fase 14) — a plain private channel, not
+ * presence: nobody needs to know who else is watching, only the numbers.
+ * Any authenticated user may subscribe — this system has no differentiated
+ * admin role yet (see ADR-0018 for why that's an accepted simplification,
+ * not an oversight).
+ */
+Broadcast::channel('dashboard', function ($user) {
+    return true;
+});

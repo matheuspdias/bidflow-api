@@ -92,6 +92,22 @@ Disparado por: `BroadcastAuctionEndedConsumer` (Fase 11), reagindo ao integratio
 }
 ```
 
+## `dashboard.updated` (canal `private-dashboard`)
+
+O único evento deste documento fora de `presence-auction.{auctionId}` — um retrato completo das métricas de negócio, não um delta. Canal privado, não presence: ver ADR-0018 para por que nenhuma classificação de papel existe aqui ainda.
+
+Disparado por: `BroadcastBusinessMetricsCommand` (Fase 14), um processo próprio (como o timer/closer) recalculando e transmitindo a cada 5 segundos.
+
+```json
+{
+    "auctions": {"scheduled": 5, "active": 12, "closed": 340, "cancelled": 8},
+    "total_bids": 1850,
+    "total_revenue": "45230.00",
+    "live_viewers_total": 37,
+    "generated_at": "2026-07-23T04:06:37+00:00"
+}
+```
+
 ## Autenticação do canal
 
 `POST /broadcasting/auth` (Bearer token Sanctum — **não** cookie/sessão, ver ADR-0011) com `channel_name` (`presence-auction.{id}`) e `socket_id`. Qualquer usuário autenticado pode se inscrever — a resposta inclui `channel_data` com a classificação de papel daquele usuário *para aquele leilão específico* (ADR-0012):

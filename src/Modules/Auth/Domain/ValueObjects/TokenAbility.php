@@ -16,6 +16,7 @@ enum TokenAbility: string
     case PROFILE_WRITE = 'profile:write';
     case AUCTION_MANAGE = 'auction:manage';
     case NOTIFICATIONS_READ = 'notifications:read';
+    case DASHBOARD_READ = 'dashboard:read';
 
     /**
      * @return list<string>

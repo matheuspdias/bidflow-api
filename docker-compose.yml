@@ -291,6 +291,25 @@ services:
     networks:
       - bidflow
 
+  # Fase 14: not a RabbitMQ consumer — a clock, like auction-timer. Ticks
+  # every 5 seconds, broadcasting a business metrics snapshot for the admin
+  # dashboard (dashboard.updated, private-dashboard).
+  dashboard-business-broadcaster:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: bidflow-dashboard-business-broadcaster
+    command: php artisan dashboard:broadcast-business
+    env_file:
+      - .env
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - app
+      - reverb
+    networks:
+      - bidflow
+
 networks:
   bidflow:
     driver: bridge

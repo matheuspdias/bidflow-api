@@ -209,7 +209,7 @@ GET  /api/me                                         (Bearer token)   → 200 { 
 ```
 
 - Todo endpoint autenticado usa `auth:sanctum` + um middleware `abilities:<ability>` checando a habilidade do token.
-- Vocabulário de abilities fixado nesta fase (`App\Modules\Auth\Domain\ValueObjects\TokenAbility`): `bid:place`, `profile:read`, `profile:write`, `auction:manage`, `notifications:read`. Login/registro emitem um token com todas as abilities; tokens mais restritos (ex.: uma integração só-para-lances) poderão ser emitidos depois sem precisar mudar esse vocabulário.
+- Vocabulário de abilities (`App\Modules\Auth\Domain\ValueObjects\TokenAbility`): `bid:place`, `profile:read`, `profile:write`, `auction:manage`, `notifications:read`, `dashboard:read` (Fase 14). Login/registro emitem um token com todas as abilities; tokens mais restritos (ex.: uma integração só-para-lances) poderão ser emitidos depois sem precisar mudar esse vocabulário.
 - Rate limit nomeado `login` (5 tentativas/minuto por `ip+email`) aplicado a `/register` e `/login`.
 - Endpoints de histórico de lances/leilões ganhos/perdidos/ranking (`/api/profile/bids`, `/api/profile/auctions/won`, `/api/profile/auctions/lost`, `/api/rankings`) — ver [ADR-0016](docs/adr/0016-activity-and-rankings-cross-module-lookups.md) e a seção "Metodologia dos rankings" abaixo.
 
@@ -244,7 +244,27 @@ A chamada que uma tela de leilão faz uma vez, ao carregar ou reconectar, para t
 
 ## Métricas do dashboard admin
 
-*(pendente — Fase 14)*
+Ver [ADR-0018](docs/adr/0018-business-dashboard.md) para o racional completo.
+
+```
+GET /api/dashboard/business   (auth, ability dashboard:read)
+```
+
+```json
+{
+    "data": {
+        "auctions": {"scheduled": 5, "active": 12, "closed": 340, "cancelled": 8},
+        "total_bids": 1850,
+        "total_revenue": "45230.00",
+        "live_viewers_total": 37,
+        "generated_at": "2026-07-23T04:06:37+00:00"
+    }
+}
+```
+
+- `total_revenue` — soma de `current_value` só dos leilões `closed` com `winner_id` não nulo (vendas de verdade, não leilões fechados sem comprador).
+- `live_viewers_total` — soma de espectadores ao vivo (Redis, Fase 8) de todos os leilões `active` agora.
+- O mesmo retrato é transmitido a cada 5s em `dashboard.updated` (canal privado `dashboard`, ver [docs/websocket-events.md](docs/websocket-events.md)) por `BroadcastBusinessMetricsCommand` — um processo próprio, como o timer e o closer.
 
 ## Dashboard técnico
 
@@ -302,6 +322,7 @@ A API fica disponível em `http://localhost:8000` (porta configurável via `APP_
 | `auction-closer` | Não é consumer RabbitMQ — um relógio. Fecha leilões `ACTIVE` vencidos e decide o vencedor a cada 5s (Fase 11) | — |
 | `auction-ended-consumer` | Consumer RabbitMQ: broadcast de encerramento (`auction.ended` — Fase 11) | — |
 | `auction-won-notification-consumer` | Consumer RabbitMQ: notifica o vencedor do leilão (`auction_won` — Fase 11) | — |
+| `dashboard-business-broadcaster` | Não é consumer RabbitMQ — um relógio. Transmite `dashboard.updated` a cada 5s (Fase 14) | — |
 
 ### Topologia RabbitMQ
 
@@ -352,5 +373,6 @@ Cada consumer declara sua própria fila (durável, com `x-dead-letter-exchange` 
 | [0015](docs/adr/0015-auction-closing-and-notifications.md) | Encerramento de leilão, vencedor e notificações |
 | [0016](docs/adr/0016-activity-and-rankings-cross-module-lookups.md) | Histórico, ganhos/perdas e rankings via contratos cross-module |
 | [0017](docs/adr/0017-reconnection-gap-fill.md) | Reconexão via gap-fill por id de lance |
+| [0018](docs/adr/0018-business-dashboard.md) | Dashboard administrativo de negócio |
 
 *(demais ADRs adicionadas conforme as fases avançam)*
