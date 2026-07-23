@@ -42,7 +42,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.3"
-          extensions: pdo_pgsql, pgsql, sockets, zip, bcmath, intl, redis, pcntl
+          extensions: pdo_pgsql, pgsql, sockets, zip, bcmath, intl, redis, pcntl, gd
           coverage: none
 
       - name: Copy .env

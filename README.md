@@ -74,7 +74,7 @@ flowchart TB
     end
 
     subgraph Shared["Shared kernel"]
-        SharedDomain["Shared\\Domain<br/>ValueObjects (Money, DateRange, AggregateId)<br/>Contracts (UserIdentity, SellerLookup, BidderLookup)<br/>Events (DomainEvent, IntegrationEvent)"]
+        SharedDomain["Shared\\Domain<br/>ValueObjects (Money, DateRange, AggregateId)<br/>Contracts (UserIdentity, SellerLookup, BidderLookup,<br/>UserRegistrar, UserAuthenticator, TokenIssuer)<br/>Events (DomainEvent, IntegrationEvent)"]
         SharedInfra["Shared\\Infrastructure<br/>MessageBroker (RabbitMQ) · Database"]
         SharedApp["Shared\\Application<br/>CommandBus · QueryBus"]
     end
@@ -106,7 +106,19 @@ flowchart TB
 
 ## Fluxo de Auth
 
-*(pendente — Fase 2)*
+Autenticação via **token Sanctum** (não cookie-SPA) — ver [ADR-0004](docs/adr/0004-auth-token-sanctum.md) para o racional completo.
+
+```
+POST /api/register  { name, email, password, password_confirmation } → 201 { user, token }
+POST /api/login      { email, password }                              → 200 { user, token }
+POST /api/logout                                    (Bearer token)    → 204
+GET  /api/me                                         (Bearer token)   → 200 { data: user }
+```
+
+- Todo endpoint autenticado usa `auth:sanctum` + um middleware `abilities:<ability>` checando a habilidade do token.
+- Vocabulário de abilities fixado nesta fase (`App\Modules\Auth\Domain\ValueObjects\TokenAbility`): `bid:place`, `profile:read`, `profile:write`, `auction:manage`, `notifications:read`. Login/registro emitem um token com todas as abilities; tokens mais restritos (ex.: uma integração só-para-lances) poderão ser emitidos depois sem precisar mudar esse vocabulário.
+- Rate limit nomeado `login` (5 tentativas/minuto por `ip+email`) aplicado a `/register` e `/login`.
+- Endpoints de histórico de lances/leilões ganhos/perdidos/ranking (`/api/profile/bids`, `/api/profile/auctions/won`, `/api/profile/auctions/lost`, `/api/rankings`) existem já como **stub**, retornando `{ data: [] }` — implementação real na Fase 12.
 
 ## Contrato da tela de leilão ao vivo
 
@@ -142,6 +154,9 @@ docker compose exec app php artisan key:generate
 
 # roda as migrations
 docker compose exec app php artisan migrate
+
+# expõe o disco público (avatares de usuário, fotos de leilão)
+docker compose exec app php artisan storage:link
 
 # roda a suíte de testes
 docker compose exec app php artisan test
@@ -179,5 +194,6 @@ A API fica disponível em `http://localhost:8000` (porta configurável via `APP_
 | [0001](docs/adr/0001-monolito-modular.md) | Monólito modular com vertical slices |
 | [0002](docs/adr/0002-clean-architecture-por-modulo.md) | Camadas de Clean Architecture por módulo |
 | [0003](docs/adr/0003-shared-kernel-contracts.md) | Padrão de contrato do shared kernel |
+| [0004](docs/adr/0004-auth-token-sanctum.md) | Autenticação por token Sanctum (não cookie-SPA) |
 
 *(demais ADRs adicionadas conforme as fases avançam)*
