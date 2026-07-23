@@ -6,13 +6,17 @@ namespace App\Modules\User\Providers;
 
 use App\Modules\User\Domain\Repositories\UserRepository;
 use App\Modules\User\Infrastructure\Persistence\Adapters\SanctumTokenIssuer;
+use App\Modules\User\Infrastructure\Persistence\Adapters\UserIdentityAdapter;
 use App\Modules\User\Infrastructure\Persistence\Adapters\UserLookupAdapter;
 use App\Modules\User\Infrastructure\Repositories\EloquentUserRepository;
 use App\Shared\Domain\Contracts\BidderLookup;
 use App\Shared\Domain\Contracts\SellerLookup;
 use App\Shared\Domain\Contracts\TokenIssuer;
 use App\Shared\Domain\Contracts\UserAuthenticator;
+use App\Shared\Domain\Contracts\UserIdentity;
 use App\Shared\Domain\Contracts\UserRegistrar;
+use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Http\Request;
 use Illuminate\Support\ServiceProvider;
 
 class UserServiceProvider extends ServiceProvider
@@ -25,6 +29,15 @@ class UserServiceProvider extends ServiceProvider
         $this->app->bind(SellerLookup::class, UserLookupAdapter::class);
         $this->app->bind(BidderLookup::class, UserLookupAdapter::class);
         $this->app->bind(TokenIssuer::class, SanctumTokenIssuer::class);
+
+        // Lets other modules depend on "the current user" via the Shared
+        // contract, never on Modules\User's own Eloquent model directly.
+        $this->app->bind(UserIdentity::class, function (Application $app) {
+            /** @var Request $request */
+            $request = $app['request'];
+
+            return new UserIdentityAdapter($request->user());
+        });
     }
 
     public function boot(): void

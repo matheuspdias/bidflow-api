@@ -102,7 +102,34 @@ flowchart TB
 
 ## Modelo de domínio
 
-*(pendente — Fase 3: invariantes do aggregate `Auction`)*
+Ver [ADR-0005](docs/adr/0005-auction-lifecycle.md) para o racional completo do ciclo de vida do leilão.
+
+```
+SCHEDULED ──activate()──▶ ACTIVE ──(Fase 11)──▶ CLOSED
+    │                        │
+    └──────cancel()──────────┘
+                │
+                ▼
+           CANCELLED
+```
+
+- Só em `SCHEDULED` o leilão pode ser editado (`updateDetails()`); preço inicial, incremento mínimo, `buy_now_price` e `reserve_price` são fixados na criação e nunca mudam depois.
+- `CANCELLED`/`CLOSED` são estados terminais — não existe "deletar" um leilão, só cancelar (preserva histórico e integridade referencial).
+- `CLOSED` só é alcançado pelo scheduler de encerramento (Fase 11), nunca por uma rota HTTP direta.
+- `Auction::placeBid()` já existe como assinatura desde a Fase 3 (lança `LogicException` até a Fase 4 implementar a lógica real) — `Bid` é uma entidade de `Auction`, não um módulo próprio (ver ADR-0001).
+- `Auction::isOwnedBy(UserIdentity)` é o único ponto de checagem de propriedade, reusado da autorização de edição (Fase 3) até a regra "vendedor não pode dar lance no próprio leilão" (Fase 4).
+
+### Endpoints de leilão
+
+```
+GET    /api/categories                    (público)
+GET    /api/auctions                      (público, paginado, filtros ?status= ?category_id=)
+GET    /api/auctions/{id}                 (público)
+POST   /api/auctions                      (auth, ability auction:manage)
+PATCH  /api/auctions/{id}                 (auth, dono, só enquanto SCHEDULED)
+POST   /api/auctions/{id}/activate        (auth, dono)
+POST   /api/auctions/{id}/cancel          (auth, dono)
+```
 
 ## Fluxo de Auth
 
@@ -185,7 +212,7 @@ A API fica disponível em `http://localhost:8000` (porta configurável via `APP_
 
 - `tests/Unit` — testes unitários isolados.
 - `tests/Feature` — testes de ponta a ponta via HTTP, rodando contra Postgres real (`bidflow_testing`), não SQLite — necessário desde já porque os testes de concorrência de lances (Fase 4) dependem de locking real do Postgres (`SELECT ... FOR UPDATE`).
-- `tests/Architecture` — regras estruturais (fronteiras de módulo, camada de domínio livre de framework), via `pestphp/pest-plugin-arch`.
+- `tests/Architecture` — regras estruturais via `pestphp/pest-plugin-arch`: fronteiras de módulo (nenhum módulo acessa classes internas de outro) e camada `Domain` de **cada** módulo (não só `Shared`) livre de dependência de `Illuminate\*` e de exceções genéricas (`Exception`/`RuntimeException`).
 
 ## Índice de ADRs
 
@@ -195,5 +222,6 @@ A API fica disponível em `http://localhost:8000` (porta configurável via `APP_
 | [0002](docs/adr/0002-clean-architecture-por-modulo.md) | Camadas de Clean Architecture por módulo |
 | [0003](docs/adr/0003-shared-kernel-contracts.md) | Padrão de contrato do shared kernel |
 | [0004](docs/adr/0004-auth-token-sanctum.md) | Autenticação por token Sanctum (não cookie-SPA) |
+| [0005](docs/adr/0005-auction-lifecycle.md) | Ciclo de vida do leilão (state machine) |
 
 *(demais ADRs adicionadas conforme as fases avançam)*

@@ -23,9 +23,17 @@ foreach ($modules as $module) {
     arch("module {$module} does not depend on other modules' internals")
         ->expect("App\\Modules\\{$module}")
         ->not->toUse($otherModules);
+
+    arch("module {$module}'s domain layer has no framework dependency")
+        ->expect("App\\Modules\\{$module}\\Domain")
+        ->not->toUse(['Illuminate', 'Illuminate\Support\Facades']);
+
+    arch("module {$module}'s domain layer does not throw generic exceptions")
+        ->expect("App\\Modules\\{$module}\\Domain")
+        ->not->toUse(['Exception', 'RuntimeException']);
 }
 
-arch('domain layer has no framework dependency')
+arch('shared kernel domain layer has no framework dependency')
     ->expect('App\Shared\Domain')
     ->not->toUse(['Illuminate', 'Illuminate\Support\Facades']);
 
@@ -33,6 +41,6 @@ arch('shared kernel does not depend on any module')
     ->expect('App\Shared')
     ->not->toUse('App\Modules');
 
-arch('domain layer does not throw generic exceptions')
+arch('shared kernel domain layer does not throw generic exceptions')
     ->expect('App\Shared\Domain')
     ->not->toUse(['Exception', 'RuntimeException']);

@@ -1,0 +1,20 @@
+<?php
+
+namespace App\Modules\Auction\Infrastructure\Persistence\Models;
+
+use Database\Factories\CategoryFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+#[Fillable(['name', 'slug'])]
+class Category extends Model
+{
+    /** @use HasFactory<CategoryFactory> */
+    use HasFactory;
+
+    protected static function newFactory(): CategoryFactory
+    {
+        return CategoryFactory::new();
+    }
+}
