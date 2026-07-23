@@ -4,6 +4,8 @@ Documento vivo, atualizado a cada fase que adiciona ou muda um evento de broadca
 
 Todos os eventos deste documento trafegam pelo canal de presence `presence-auction.{auctionId}` (upgrade de `private-auction.{auctionId}` na Fase 8 — mesma regra de autorização, agora com classificação de papel), exceto quando indicado.
 
+Um cliente entrando numa tela de leilão deve chamar `GET /api/auctions/{id}/live` (ver [ADR-0013](adr/0013-recent-bids-redis-feed.md)) **antes** de se inscrever no canal — ele traz o estado atual e o feed recente; os eventos abaixo só cobrem o que muda a partir daquele instante.
+
 ## `bid.placed`
 
 Entrada de feed: um lance foi aceito. Cliente deve **acrescentar** ao feed de lances, não recalcular estado a partir dele.

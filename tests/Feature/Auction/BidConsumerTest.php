@@ -28,6 +28,35 @@ test('consume:auction-stats increments Redis counters for a bid_placed event', f
     expect((int) Redis::get("stats:auctions:{$auctionId}:bid_count"))->toBe(1);
 });
 
+test('consume:auction-stats also pushes the bid onto the recent-bids Redis list (Fase 9)', function () {
+    ensureConsumerQueueExists('update_auction_stats', 'auction.bid_placed');
+
+    $auctionId = random_int(100000, 999999);
+
+    publishRawIntegrationEvent('auction.bid_placed', [
+        'event_id' => (string) Str::uuid(),
+        'auction_id' => $auctionId,
+        'bid_id' => 9,
+        'bidder_id' => 4,
+        'amount' => '175.50',
+        'currency' => 'USD',
+        'occurred_at' => '2026-07-23T02:00:00+00:00',
+    ]);
+
+    $this->artisan('consume:auction-stats', ['--limit' => 1, '--timeout' => 5])->assertSuccessful();
+
+    $entries = Redis::lrange("auction:{$auctionId}:recent_bids", 0, -1);
+    expect($entries)->toHaveCount(1);
+
+    $entry = json_decode($entries[0], true);
+    expect($entry)->toBe([
+        'id' => 9,
+        'bidder_id' => 4,
+        'amount' => '175.50',
+        'placed_at' => '2026-07-23T02:00:00+00:00',
+    ]);
+});
+
 test('consume:bid-history persists exactly one row even when the same event is delivered twice', function () {
     ensureConsumerQueueExists('persist_bid_history', 'auction.bid_placed');
 

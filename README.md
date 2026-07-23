@@ -183,6 +183,7 @@ SCHEDULED ──activate()──▶ ACTIVE ──(Fase 11)──▶ CLOSED
 GET    /api/categories                    (público)
 GET    /api/auctions                      (público, paginado, filtros ?status= ?category_id=)
 GET    /api/auctions/{id}                 (público)
+GET    /api/auctions/{id}/live            (público — snapshot para a tela ao vivo, ver seção própria)
 POST   /api/auctions                      (auth, ability auction:manage)
 PATCH  /api/auctions/{id}                 (auth, dono, só enquanto SCHEDULED)
 POST   /api/auctions/{id}/activate        (auth, dono)
@@ -210,7 +211,26 @@ GET  /api/me                                         (Bearer token)   → 200 { 
 
 ## Contrato da tela de leilão ao vivo
 
-*(pendente — Fase 9)*
+Ver [ADR-0013](docs/adr/0013-recent-bids-redis-feed.md) para o racional completo.
+
+```
+GET /api/auctions/{id}/live   (público)
+```
+
+A chamada que uma tela de leilão faz uma vez, ao carregar ou reconectar, para ter tudo que precisa antes de começar a ouvir o WebSocket (que só empurra deltas dali em diante — ver [docs/websocket-events.md](docs/websocket-events.md)):
+
+```json
+{
+    "auction": { "id": 33, "status": "active", "current_value": "130.00", "...": "..." },
+    "viewer_count": 3,
+    "recent_bids": [
+        {"id": 12, "bidder_id": 82, "amount": "130.00", "placed_at": "2026-07-23T01:59:05+00:00"}
+    ]
+}
+```
+
+- `viewer_count` — espectadores ao vivo agora, lido do set de presence do Redis (Fase 8/ADR-0012). Não confundir com `auction.participant_count` (contagem persistida de quem já deu lance, nunca de quem só está olhando).
+- `recent_bids` — lido de uma lista do Redis (`LPUSH`/`LTRIM`, até 50 entradas) que `UpdateAuctionStatsConsumer` mantém a cada `auction.bid_placed`; cai de volta para a tabela `bids` (via `BidRepository::recentForAuction()`) sempre que essa lista está vazia — não um caso raro: é o comportamento certo logo após um flush/restart do Redis, ou para qualquer leilão com lances anteriores a esta feature.
 
 ## Metodologia dos rankings
 
@@ -315,5 +335,6 @@ Cada consumer declara sua própria fila (durável, com `x-dead-letter-exchange` 
 | [0010](docs/adr/0010-at-least-once-idempotent-consumers.md) | Entrega at-least-once e padrão de consumer idempotente |
 | [0011](docs/adr/0011-reverb-websocket.md) | Laravel Reverb para WebSocket |
 | [0012](docs/adr/0012-presence-channel-without-webhooks.md) | Canal de presence sem webhooks do Reverb |
+| [0013](docs/adr/0013-recent-bids-redis-feed.md) | Feed de lances recentes via Redis, com fallback para o Postgres |
 
 *(demais ADRs adicionadas conforme as fases avançam)*

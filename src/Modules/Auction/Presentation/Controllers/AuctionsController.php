@@ -13,6 +13,7 @@ use App\Modules\Auction\Domain\Exceptions\InvalidAuctionStatusTransitionExceptio
 use App\Modules\Auction\Domain\Exceptions\NotAuctionOwnerException;
 use App\Modules\Auction\Domain\Repositories\AuctionRepository;
 use App\Modules\Auction\Domain\ValueObjects\AuctionStatus;
+use App\Modules\Auction\Infrastructure\ReadModels\RecentBidsFeed;
 use App\Modules\Auction\Presentation\Requests\CreateAuctionRequest;
 use App\Modules\Auction\Presentation\Requests\UpdateAuctionRequest;
 use App\Modules\Auction\Presentation\Resources\AuctionResource;
@@ -22,6 +23,7 @@ use App\Shared\Domain\ValueObjects\Money;
 use DateTimeImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Redis;
 
 final class AuctionsController
 {
@@ -31,6 +33,7 @@ final class AuctionsController
         private readonly UpdateAuctionUseCase $updateAuctionUseCase,
         private readonly ActivateAuctionUseCase $activateAuctionUseCase,
         private readonly CancelAuctionUseCase $cancelAuctionUseCase,
+        private readonly RecentBidsFeed $recentBidsFeed,
     ) {
     }
 
@@ -62,6 +65,29 @@ final class AuctionsController
         }
 
         return new AuctionResource($auction);
+    }
+
+    /**
+     * The one-shot "give me everything to render the live page" call —
+     * complements the WS event stream (which only pushes deltas from here
+     * on), it doesn't replace it. viewer_count is live/ephemeral (Fase 8's
+     * Redis presence set); the resource's own participant_count/view_count
+     * are unrelated, persisted counters — see RecentBidsFeed and
+     * docs/websocket-events.md for how each stays in sync afterward.
+     */
+    public function live(int $id): JsonResponse
+    {
+        $auction = $this->auctions->findById($id);
+
+        if ($auction === null) {
+            return response()->json(['message' => 'Auction not found.'], 404);
+        }
+
+        return response()->json([
+            'auction' => (new AuctionResource($auction))->resolve(),
+            'viewer_count' => (int) Redis::scard("auction:{$id}:viewers"),
+            'recent_bids' => $this->recentBidsFeed->forAuction($id),
+        ]);
     }
 
     public function store(CreateAuctionRequest $request): JsonResponse

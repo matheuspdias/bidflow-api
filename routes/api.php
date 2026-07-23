@@ -18,6 +18,7 @@ Route::post('/login', LoginController::class)->middleware('throttle:login');
 Route::get('/categories', [CategoriesController::class, 'index']);
 Route::get('/auctions', [AuctionsController::class, 'index']);
 Route::get('/auctions/{id}', [AuctionsController::class, 'show']);
+Route::get('/auctions/{id}/live', [AuctionsController::class, 'live']);
 
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/logout', LogoutController::class);
