@@ -24,6 +24,14 @@ final class RecentBidsFeed
 {
     public const LIMIT = 50;
 
+    /**
+     * Higher than LIMIT on purpose: a reconnecting client (Fase 13) may
+     * have been offline long enough to miss more than the recent-history
+     * window — the gap-fill query is bounded, but by a different, more
+     * generous number than "how much history a fresh page load needs".
+     */
+    public const GAP_FILL_LIMIT = 200;
+
     public function __construct(private readonly BidRepository $bids)
     {
     }
@@ -45,6 +53,24 @@ final class RecentBidsFeed
             'amount' => $bid->amount()->amount(),
             'placed_at' => $bid->placedAt()->format(DATE_ATOM),
         ], $this->bids->recentForAuction($auctionId, self::LIMIT));
+    }
+
+    /**
+     * The reconnection gap-fill path: everything after $afterBidId, oldest
+     * first, so a client can replay them in order. Always reads the bids
+     * table directly — the Redis list backing forAuction() is capped at
+     * LIMIT and newest-first, the wrong shape for "exactly what I missed".
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function sinceBidId(int $auctionId, int $afterBidId): array
+    {
+        return array_map(static fn (Bid $bid) => [
+            'id' => $bid->id(),
+            'bidder_id' => $bid->bidderId(),
+            'amount' => $bid->amount()->amount(),
+            'placed_at' => $bid->placedAt()->format(DATE_ATOM),
+        ], $this->bids->afterId($auctionId, $afterBidId, self::GAP_FILL_LIMIT));
     }
 
     public static function redisKey(int $auctionId): string

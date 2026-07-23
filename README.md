@@ -215,10 +215,11 @@ GET  /api/me                                         (Bearer token)   → 200 { 
 
 ## Contrato da tela de leilão ao vivo
 
-Ver [ADR-0013](docs/adr/0013-recent-bids-redis-feed.md) para o racional completo.
+Ver [ADR-0013](docs/adr/0013-recent-bids-redis-feed.md) para o racional completo, e [ADR-0017](docs/adr/0017-reconnection-gap-fill.md) para `?after_bid_id=`.
 
 ```
-GET /api/auctions/{id}/live   (público)
+GET /api/auctions/{id}/live                      (público)
+GET /api/auctions/{id}/live?after_bid_id={id}    (público — gap-fill de reconexão, ver ADR-0017)
 ```
 
 A chamada que uma tela de leilão faz uma vez, ao carregar ou reconectar, para ter tudo que precisa antes de começar a ouvir o WebSocket (que só empurra deltas dali em diante — ver [docs/websocket-events.md](docs/websocket-events.md)):
@@ -235,6 +236,7 @@ A chamada que uma tela de leilão faz uma vez, ao carregar ou reconectar, para t
 
 - `viewer_count` — espectadores ao vivo agora, lido do set de presence do Redis (Fase 8/ADR-0012). Não confundir com `auction.participant_count` (contagem persistida de quem já deu lance, nunca de quem só está olhando).
 - `recent_bids` — lido de uma lista do Redis (`LPUSH`/`LTRIM`, até 50 entradas) que `UpdateAuctionStatsConsumer` mantém a cada `auction.bid_placed`; cai de volta para a tabela `bids` (via `BidRepository::recentForAuction()`) sempre que essa lista está vazia — não um caso raro: é o comportamento certo logo após um flush/restart do Redis, ou para qualquer leilão com lances anteriores a esta feature.
+- Com `?after_bid_id=`, `recent_bids` muda de fonte e de forma: em vez da lista do Redis (capada, mais recente primeiro), vem direto da tabela `bids` via `BidRepository::afterId()` — tudo com `id` maior que o informado, ordem cronológica, até 200 entradas. É o gap-fill que um cliente chama ao reconectar depois de uma queda de WebSocket, usando o `id` do último lance que viu como número de sequência (Fase 13, ADR-0017) — o mesmo endpoint, não um novo.
 
 ## Metodologia dos rankings
 
@@ -323,7 +325,7 @@ Cada consumer declara sua própria fila (durável, com `x-dead-letter-exchange` 
 ## Estrutura de testes
 
 - `tests/Unit` — testes unitários isolados.
-- `tests/Feature` — testes de ponta a ponta via HTTP, rodando contra Postgres real (`bidflow_testing`), não SQLite — necessário desde já porque os testes de concorrência de lances (Fase 4) dependem de locking real do Postgres (`SELECT ... FOR UPDATE`).
+- `tests/Feature` — testes de ponta a ponta via HTTP, rodando contra Postgres real (`bidflow_testing`), não SQLite — necessário desde já porque os testes de concorrência de lances (Fase 4) dependem de locking real do Postgres (`SELECT ... FOR UPDATE`). Redis também é isolado (`REDIS_DB=1`, distinto do `0` que dev/produção usam) desde a Fase 13 — ver ADR-0017 para o problema real que isso evitou.
 - `tests/Architecture` — regras estruturais via `pestphp/pest-plugin-arch`: fronteiras de módulo (nenhum módulo acessa classes internas de outro) e camada `Domain` de **cada** módulo (não só `Shared`) livre de dependência de `Illuminate\*` e de exceções genéricas (`Exception`/`RuntimeException`).
 - `tests/Concurrency` — testes que forjam concorrência real de SO (`pcntl_fork`), não simulada dentro de um único processo. Deliberadamente **fora** de `RefreshDatabase` (cada processo forkado precisa enxergar dados já commitados por outra sessão de banco) — cada teste confirma e limpa seus próprios dados manualmente. Ver ADR-0006.
 
@@ -349,5 +351,6 @@ Cada consumer declara sua própria fila (durável, com `x-dead-letter-exchange` 
 | [0014](docs/adr/0014-anti-sniping-and-synchronized-timer.md) | Anti-sniping e timer sincronizado |
 | [0015](docs/adr/0015-auction-closing-and-notifications.md) | Encerramento de leilão, vencedor e notificações |
 | [0016](docs/adr/0016-activity-and-rankings-cross-module-lookups.md) | Histórico, ganhos/perdas e rankings via contratos cross-module |
+| [0017](docs/adr/0017-reconnection-gap-fill.md) | Reconexão via gap-fill por id de lance |
 
 *(demais ADRs adicionadas conforme as fases avançam)*

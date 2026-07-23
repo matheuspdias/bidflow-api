@@ -74,8 +74,14 @@ final class AuctionsController
      * Redis presence set); the resource's own participant_count/view_count
      * are unrelated, persisted counters — see RecentBidsFeed and
      * docs/websocket-events.md for how each stays in sync afterward.
+     *
+     * ?after_bid_id=<id> switches recent_bids from "last 50" to "everything
+     * that happened after this bid" — the reconnection gap-fill a client
+     * calls with the last bid id it saw before a WebSocket drop (Fase 13,
+     * ADR-0017), instead of a fixed recent-history window that might be
+     * smaller (or wastefully larger) than the actual gap.
      */
-    public function live(int $id): JsonResponse
+    public function live(Request $request, int $id): JsonResponse
     {
         $auction = $this->auctions->findById($id);
 
@@ -83,10 +89,14 @@ final class AuctionsController
             return response()->json(['message' => 'Auction not found.'], 404);
         }
 
+        $afterBidId = $request->filled('after_bid_id') ? $request->integer('after_bid_id') : null;
+
         return response()->json([
             'auction' => (new AuctionResource($auction))->resolve(),
             'viewer_count' => (int) Redis::scard("auction:{$id}:viewers"),
-            'recent_bids' => $this->recentBidsFeed->forAuction($id),
+            'recent_bids' => $afterBidId !== null
+                ? $this->recentBidsFeed->sinceBidId($id, $afterBidId)
+                : $this->recentBidsFeed->forAuction($id),
         ]);
     }
 

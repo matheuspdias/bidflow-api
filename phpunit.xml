@@ -39,6 +39,18 @@
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
+        <!--
+            Redis has no database-per-environment convention as ready-made as
+            Postgres's separate bidflow_testing database — CACHE_STORE=array
+            above isolates the Cache facade, but code that calls Redis::
+            directly (viewer presence sets, recent-bids lists, rate limiters)
+            was still hitting the same real Redis container as dev, keyed by
+            auto-incrementing ids that can coincidentally collide with
+            whatever a dev session happened to leave behind. REDIS_DB=1 gives
+            the test suite its own logical database on the same server —
+            REDIS_DB (default 0) is what dev/production actually use.
+        -->
+        <env name="REDIS_DB" value="1"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>

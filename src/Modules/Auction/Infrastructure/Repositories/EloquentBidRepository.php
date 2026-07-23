@@ -77,4 +77,24 @@ final class EloquentBidRepository implements BidRepository
             ))
             ->all();
     }
+
+    public function afterId(int $auctionId, int $afterId, int $limit = 200): array
+    {
+        $currency = config('money.default_currency');
+
+        return BidModel::query()
+            ->where('auction_id', $auctionId)
+            ->where('id', '>', $afterId)
+            ->orderBy('id')
+            ->limit($limit)
+            ->get()
+            ->map(fn (BidModel $model) => Bid::reconstitute(
+                id: $model->id,
+                auctionId: $model->auction_id,
+                bidderId: $model->bidder_id,
+                amount: Money::of($model->amount, $currency),
+                placedAt: $model->created_at->toDateTimeImmutable(),
+            ))
+            ->all();
+    }
 }

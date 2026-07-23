@@ -48,3 +48,32 @@ test('viewing the live snapshot requires no authentication', function () {
 
     $this->getJson("/api/auctions/{$auction->id}/live")->assertOk();
 });
+
+test('after_bid_id switches recent_bids to a gap-fill of everything missed, ignoring the Redis cache', function () {
+    $auction = Auction::factory()->active()->create();
+    $bidder = User::factory()->create();
+
+    // Populated to prove ?after_bid_id bypasses it entirely, not just
+    // that it happens to return the right thing when Redis is empty.
+    Redis::lpush("auction:{$auction->id}:recent_bids", json_encode([
+        'id' => 999, 'bidder_id' => 1, 'amount' => '999.00', 'placed_at' => now()->toAtomString(),
+    ]));
+
+    $missed1 = Bid::create(['auction_id' => $auction->id, 'bidder_id' => $bidder->id, 'amount' => 110, 'status' => 'accepted']);
+    $missed2 = Bid::create(['auction_id' => $auction->id, 'bidder_id' => $bidder->id, 'amount' => 130, 'status' => 'accepted']);
+
+    $response = $this->getJson("/api/auctions/{$auction->id}/live?after_bid_id={$missed1->id}")->assertOk();
+
+    expect($response->json('recent_bids'))->toHaveCount(1);
+    $response->assertJsonPath('recent_bids.0.id', $missed2->id);
+});
+
+test('after_bid_id returns nothing when there is nothing new since that bid', function () {
+    $auction = Auction::factory()->active()->create();
+    $bidder = User::factory()->create();
+    $lastSeen = Bid::create(['auction_id' => $auction->id, 'bidder_id' => $bidder->id, 'amount' => 110, 'status' => 'accepted']);
+
+    $this->getJson("/api/auctions/{$auction->id}/live?after_bid_id={$lastSeen->id}")
+        ->assertOk()
+        ->assertJsonPath('recent_bids', []);
+});
