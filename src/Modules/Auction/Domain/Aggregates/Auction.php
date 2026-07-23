@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace App\Modules\Auction\Domain\Aggregates;
 
+use App\Modules\Auction\Domain\Entities\Bid;
 use App\Modules\Auction\Domain\Events\AuctionCancelled;
 use App\Modules\Auction\Domain\Events\AuctionStarted;
+use App\Modules\Auction\Domain\Events\BidPlaced;
+use App\Modules\Auction\Domain\Exceptions\AuctionClosedException;
+use App\Modules\Auction\Domain\Exceptions\BidTooLowException;
 use App\Modules\Auction\Domain\Exceptions\InvalidAuctionStatusTransitionException;
+use App\Modules\Auction\Domain\Exceptions\SellerCannotBidException;
 use App\Modules\Auction\Domain\ValueObjects\AuctionStatus;
 use App\Shared\Domain\Contracts\UserIdentity;
 use App\Shared\Domain\Events\DomainEvent;
@@ -40,6 +45,7 @@ final class Auction
         private Money $currentValue,
         private int $participantCount,
         private int $viewCount,
+        private ?int $highestBidId = null,
     ) {
     }
 
@@ -92,6 +98,7 @@ final class Auction
         Money $currentValue,
         int $participantCount,
         int $viewCount,
+        ?int $highestBidId = null,
     ): self {
         return new self(
             id: $id,
@@ -108,6 +115,7 @@ final class Auction
             currentValue: $currentValue,
             participantCount: $participantCount,
             viewCount: $viewCount,
+            highestBidId: $highestBidId,
         );
     }
 
@@ -153,13 +161,53 @@ final class Auction
     }
 
     /**
-     * Full bidding logic (invariants, current value, anti-sniping) lands in
-     * Fase 4. The signature exists now because Auction owns Bid, but calling
-     * this before then is a programming error, not a business rule.
+     * Validates and applies a bid, returning the not-yet-persisted Bid
+     * entity. Bidder-blocked checks are deliberately not done here — that
+     * fact belongs to Modules\User, checked by the caller (PlaceBidUseCase)
+     * via the Shared\Domain\Contracts\BidderLookup contract before this
+     * method is ever invoked.
+     *
+     * $isNewParticipant is supplied by the caller (a query against bid
+     * history) rather than computed here, since the aggregate has no way to
+     * know about previous bids beyond its own in-memory state.
      */
-    public function placeBid(int $bidderId, Money $amount): void
+    public function placeBid(int $bidderId, Money $amount, bool $isNewParticipant): Bid
     {
-        throw new LogicException('Auction::placeBid() is not implemented until Fase 4.');
+        if ($this->status !== AuctionStatus::ACTIVE) {
+            throw new AuctionClosedException();
+        }
+
+        if ($bidderId === $this->sellerId) {
+            throw new SellerCannotBidException();
+        }
+
+        $minimumAcceptable = $this->currentValue->add($this->minimumIncrement);
+
+        if ($amount->isLessThan($minimumAcceptable)) {
+            throw new BidTooLowException();
+        }
+
+        $this->currentValue = $amount;
+
+        if ($isNewParticipant) {
+            $this->participantCount++;
+        }
+
+        $bid = Bid::place($this->requireId(), $bidderId, $amount);
+
+        $this->record(new BidPlaced($this->requireId(), $bidderId, $amount, new DateTimeImmutable()));
+
+        return $bid;
+    }
+
+    public function markHighestBid(int $bidId): void
+    {
+        $this->highestBidId = $bidId;
+    }
+
+    public function highestBidId(): ?int
+    {
+        return $this->highestBidId;
     }
 
     public function isOwnedBy(UserIdentity $identity): bool

@@ -24,6 +24,16 @@ pest()->extend(TestCase::class)
     ->in('Unit');
 
 /*
+| Concurrency tests fork real OS processes with independent DB connections
+| (see tests/Concurrency/BidConcurrencyTest.php) — deliberately NOT wrapped
+| in RefreshDatabase's per-test transaction, since a forked child's fresh
+| connection can't see another session's uncommitted rows. Each test in
+| this suite commits and cleans up its own data explicitly.
+*/
+pest()->extend(TestCase::class)
+    ->in('Concurrency');
+
+/*
 |--------------------------------------------------------------------------
 | Expectations
 |--------------------------------------------------------------------------

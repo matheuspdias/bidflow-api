@@ -90,7 +90,43 @@ flowchart TB
 
 ### Fluxo de lance
 
-*(pendente — Fase 4)*
+Ver [ADR-0006](docs/adr/0006-pessimistic-locking-bid-concurrency.md) (lock pessimista) e [ADR-0007](docs/adr/0007-bid-idempotency-strategy.md) (idempotência).
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente
+    participant MW as EnsureIdempotentBidRequest
+    participant UC as PlaceBidUseCase
+    participant DB as Postgres (transação)
+
+    C->>MW: POST /auctions/{id}/bids (Idempotency-Key)
+    alt chave já vista para este bidder
+        MW-->>C: resposta cacheada (mesma da 1ª vez)
+    else chave nova
+        MW->>UC: execute()
+        UC->>DB: BEGIN + SELECT auctions FOR UPDATE
+        Note over DB: concorrentes no mesmo leilão bloqueiam aqui até o commit
+        UC->>UC: bidder blocked? seller? status ACTIVE? amount >= current+increment?
+        alt alguma checagem falha
+            UC->>DB: INSERT bid_audit_logs (rejected)
+            UC->>DB: COMMIT
+            UC-->>MW: throw DomainException
+            MW-->>C: 403/422 (cacheado para replay)
+        else aceito
+            UC->>DB: INSERT bids
+            UC->>DB: UPDATE auctions (current_value, highest_bid_id)
+            UC->>DB: INSERT bid_audit_logs (accepted)
+            UC->>DB: COMMIT
+            UC->>UC: pullDomainEvents() → event(BidPlaced) (só depois do commit)
+            UC-->>MW: BidPlacementResult
+            MW-->>C: 201 (cacheado para replay)
+        end
+    end
+```
+
+- `Auction::placeBid()` valida três invariantes de domínio (status `ACTIVE`, vendedor não pode dar lance no próprio leilão, valor ≥ `current_value + minimum_increment`) — nenhuma delas toca framework ou banco.
+- Toda rejeição grava uma linha em `bid_audit_logs` **dentro da mesma transação que é commitada** (não uma que sofre rollback) — ver ADR-0006 para o porquê disso exigir capturar a exceção dentro do closure da transação em vez de deixá-la propagar.
+- Não existe rota para cancelar/editar um lance — garantido por teste (`tests/Feature/Auction/PlaceBidTest.php`).
 
 ### Fluxo de eventos (domain → integration → broadcast)
 
@@ -116,8 +152,8 @@ SCHEDULED ──activate()──▶ ACTIVE ──(Fase 11)──▶ CLOSED
 - Só em `SCHEDULED` o leilão pode ser editado (`updateDetails()`); preço inicial, incremento mínimo, `buy_now_price` e `reserve_price` são fixados na criação e nunca mudam depois.
 - `CANCELLED`/`CLOSED` são estados terminais — não existe "deletar" um leilão, só cancelar (preserva histórico e integridade referencial).
 - `CLOSED` só é alcançado pelo scheduler de encerramento (Fase 11), nunca por uma rota HTTP direta.
-- `Auction::placeBid()` já existe como assinatura desde a Fase 3 (lança `LogicException` até a Fase 4 implementar a lógica real) — `Bid` é uma entidade de `Auction`, não um módulo próprio (ver ADR-0001).
-- `Auction::isOwnedBy(UserIdentity)` é o único ponto de checagem de propriedade, reusado da autorização de edição (Fase 3) até a regra "vendedor não pode dar lance no próprio leilão" (Fase 4).
+- `Auction::placeBid()` (Fase 4) valida status `ACTIVE`, impede o vendedor de dar lance no próprio leilão, e exige `amount >= current_value + minimum_increment` — `Bid` é uma entidade de `Auction`, não um módulo próprio (ver ADR-0001).
+- `Auction::isOwnedBy(UserIdentity)` é o único ponto de checagem de propriedade, usado tanto na autorização de edição (Fase 3) quanto — via `bidderId === sellerId` diretamente em `placeBid()` — na regra "vendedor não pode dar lance no próprio leilão".
 
 ### Endpoints de leilão
 
@@ -129,7 +165,10 @@ POST   /api/auctions                      (auth, ability auction:manage)
 PATCH  /api/auctions/{id}                 (auth, dono, só enquanto SCHEDULED)
 POST   /api/auctions/{id}/activate        (auth, dono)
 POST   /api/auctions/{id}/cancel          (auth, dono)
+POST   /api/auctions/{id}/bids            (auth, ability bid:place, header Idempotency-Key obrigatório)
 ```
+
+`POST .../bids` também passa por um rate limit nomeado (`bid-placement`, 20/min por usuário) e nunca tem um par PATCH/DELETE — lances não são editáveis nem canceláveis.
 
 ## Fluxo de Auth
 
@@ -213,6 +252,7 @@ A API fica disponível em `http://localhost:8000` (porta configurável via `APP_
 - `tests/Unit` — testes unitários isolados.
 - `tests/Feature` — testes de ponta a ponta via HTTP, rodando contra Postgres real (`bidflow_testing`), não SQLite — necessário desde já porque os testes de concorrência de lances (Fase 4) dependem de locking real do Postgres (`SELECT ... FOR UPDATE`).
 - `tests/Architecture` — regras estruturais via `pestphp/pest-plugin-arch`: fronteiras de módulo (nenhum módulo acessa classes internas de outro) e camada `Domain` de **cada** módulo (não só `Shared`) livre de dependência de `Illuminate\*` e de exceções genéricas (`Exception`/`RuntimeException`).
+- `tests/Concurrency` — testes que forjam concorrência real de SO (`pcntl_fork`), não simulada dentro de um único processo. Deliberadamente **fora** de `RefreshDatabase` (cada processo forkado precisa enxergar dados já commitados por outra sessão de banco) — cada teste confirma e limpa seus próprios dados manualmente. Ver ADR-0006.
 
 ## Índice de ADRs
 
@@ -223,5 +263,7 @@ A API fica disponível em `http://localhost:8000` (porta configurável via `APP_
 | [0003](docs/adr/0003-shared-kernel-contracts.md) | Padrão de contrato do shared kernel |
 | [0004](docs/adr/0004-auth-token-sanctum.md) | Autenticação por token Sanctum (não cookie-SPA) |
 | [0005](docs/adr/0005-auction-lifecycle.md) | Ciclo de vida do leilão (state machine) |
+| [0006](docs/adr/0006-pessimistic-locking-bid-concurrency.md) | Lock pessimista para concorrência de lances |
+| [0007](docs/adr/0007-bid-idempotency-strategy.md) | Estratégia de idempotency key para lances |
 
 *(demais ADRs adicionadas conforme as fases avançam)*

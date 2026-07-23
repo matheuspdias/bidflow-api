@@ -84,6 +84,7 @@ final class EloquentAuctionRepository implements AuctionRepository
             'current_value' => $auction->currentValue()->amount(),
             'participant_count' => $auction->participantCount(),
             'view_count' => $auction->viewCount(),
+            'highest_bid_id' => $auction->highestBidId(),
         ];
     }
 
@@ -106,6 +107,7 @@ final class EloquentAuctionRepository implements AuctionRepository
             currentValue: Money::of($model->current_value, $currency),
             participantCount: $model->participant_count,
             viewCount: $model->view_count,
+            highestBidId: $model->highest_bid_id,
         );
     }
 }

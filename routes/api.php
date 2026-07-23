@@ -1,6 +1,8 @@
 <?php
 
+use App\Modules\Auction\Infrastructure\Http\Middleware\EnsureIdempotentBidRequest;
 use App\Modules\Auction\Presentation\Controllers\AuctionsController;
+use App\Modules\Auction\Presentation\Controllers\BidsController;
 use App\Modules\Auction\Presentation\Controllers\CategoriesController;
 use App\Modules\Auth\Presentation\Controllers\LoginController;
 use App\Modules\Auth\Presentation\Controllers\LogoutController;
@@ -36,4 +38,9 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/auctions/{id}/activate', [AuctionsController::class, 'activate']);
         Route::post('/auctions/{id}/cancel', [AuctionsController::class, 'cancel']);
     });
+
+    // No PATCH/DELETE for a bid — bids are never edited or cancelled once
+    // placed (see ADR-0006).
+    Route::post('/auctions/{id}/bids', [BidsController::class, 'store'])
+        ->middleware(['abilities:bid:place', 'throttle:bid-placement', EnsureIdempotentBidRequest::class]);
 });
