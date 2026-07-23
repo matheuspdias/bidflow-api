@@ -150,11 +150,12 @@ flowchart LR
 
 ### Estratégia WebSocket
 
-*(pendente — Fase 7)*
+Ver [ADR-0011](docs/adr/0011-reverb-websocket.md) (Reverb vs Pusher/Ably + história de escala via Redis) e [docs/websocket-events.md](docs/websocket-events.md) (payload de cada evento, atualizado a cada fase).
 
-### Estratégia WebSocket
-
-*(pendente — Fase 7)*
+- Laravel Reverb (self-hosted, protocolo Pusher — compatível com `laravel-echo`/`pusher-js` sem modificação) em vez de Pusher/Ably (SaaS de terceiro).
+- Canal privado `private-auction.{id}`: qualquer usuário autenticado pode se inscrever — é uma casa de leilões pública. Autenticação via `POST /broadcasting/auth`, que precisou de duas correções específicas para funcionar com token Sanctum em vez de sessão (ver ADR-0011): `withBroadcasting(..., ['middleware' => ['auth:sanctum']])` no lugar do atalho padrão, e `shouldRenderJsonWhen` estendido para cobrir `broadcasting/*` (sem isso, uma falha de auth vira 500 em vez de 401 — Laravel tenta redirecionar pra uma rota `login` que não existe neste backend).
+- `bid.placed` (entrada de feed) e `auction.updated` (resync de estado resumido) são eventos deliberadamente separados, ambos disparados pelo `BroadcastBidConsumer` reagindo ao integration event `auction.bid_placed` — fora do ciclo de vida da request HTTP que criou o lance.
+- Validado ponta a ponta com um cliente WebSocket real (protocolo Pusher puro, sem Echo): uma chamada REST de lance produz os dois eventos no cliente WS em poucos milissegundos.
 
 ## Modelo de domínio
 
@@ -309,5 +310,6 @@ Cada consumer declara sua própria fila (durável, com `x-dead-letter-exchange` 
 | [0008](docs/adr/0008-domain-vs-integration-events.md) | Domain events vs integration events |
 | [0009](docs/adr/0009-redis-horizon-vs-rabbitmq.md) | Redis + Horizon (jobs internos) vs RabbitMQ (integration events) |
 | [0010](docs/adr/0010-at-least-once-idempotent-consumers.md) | Entrega at-least-once e padrão de consumer idempotente |
+| [0011](docs/adr/0011-reverb-websocket.md) | Laravel Reverb para WebSocket |
 
 *(demais ADRs adicionadas conforme as fases avançam)*
