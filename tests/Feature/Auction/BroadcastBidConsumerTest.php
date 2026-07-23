@@ -15,7 +15,7 @@ beforeEach(function () {
     config(['broadcasting.default' => 'log']);
 });
 
-test('consume:bid-broadcast broadcasts bid.placed and auction.updated on the auction private channel', function () {
+test('consume:bid-broadcast broadcasts bid.placed and auction.updated on the auction presence channel', function () {
     Log::spy();
 
     ensureConsumerQueueExists('broadcast_bid', 'auction.bid_placed');
@@ -40,14 +40,14 @@ test('consume:bid-broadcast broadcasts bid.placed and auction.updated on the auc
 
     Log::shouldHaveReceived('info')->withArgs(function (string $message) use ($auction) {
         return str_contains($message, 'Broadcasting [bid.placed]')
-            && str_contains($message, "private-auction.{$auction->id}")
+            && str_contains($message, "presence-auction.{$auction->id}")
             && str_contains($message, '"bidder_id": 7')
             && str_contains($message, '"amount": "110.00"');
     })->once();
 
     Log::shouldHaveReceived('info')->withArgs(function (string $message) use ($auction) {
         return str_contains($message, 'Broadcasting [auction.updated]')
-            && str_contains($message, "private-auction.{$auction->id}")
+            && str_contains($message, "presence-auction.{$auction->id}")
             && str_contains($message, '"status": "active"')
             && str_contains($message, '"current_value": "110.00"');
     })->once();

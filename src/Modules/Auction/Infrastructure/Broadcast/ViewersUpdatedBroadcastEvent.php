@@ -11,24 +11,19 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 
 /**
- * A resync of summarized auction state — status/current_value/participant
- * count — as opposed to BidPlacedBroadcastEvent's feed entry. A client that
- * missed a beat (Fase 13: reconnection) can trust this to bring its header
- * back in sync without replaying the whole feed.
- *
- * PresenceChannel, not PrivateChannel — see BidPlacedBroadcastEvent (Fase 8,
- * ADR-0012).
+ * Live viewer count for an auction — deliberately separate from
+ * AuctionUpdatedBroadcastEvent's participant_count, which counts unique
+ * *bidders* (Auction::placeBid()'s isNewParticipant), not people currently
+ * watching. A viewer who never bids still counts here and never there.
  */
-final class AuctionUpdatedBroadcastEvent implements ShouldBroadcastNow
+final class ViewersUpdatedBroadcastEvent implements ShouldBroadcastNow
 {
     use Dispatchable;
     use InteractsWithSockets;
 
     public function __construct(
         public readonly int $auctionId,
-        public readonly string $status,
-        public readonly string $currentValue,
-        public readonly int $participantCount,
+        public readonly int $viewerCount,
     ) {
     }
 
@@ -42,7 +37,7 @@ final class AuctionUpdatedBroadcastEvent implements ShouldBroadcastNow
 
     public function broadcastAs(): string
     {
-        return 'auction.updated';
+        return 'viewers.updated';
     }
 
     /**
@@ -52,9 +47,7 @@ final class AuctionUpdatedBroadcastEvent implements ShouldBroadcastNow
     {
         return [
             'auction_id' => $this->auctionId,
-            'status' => $this->status,
-            'current_value' => $this->currentValue,
-            'participant_count' => $this->participantCount,
+            'viewer_count' => $this->viewerCount,
         ];
     }
 }

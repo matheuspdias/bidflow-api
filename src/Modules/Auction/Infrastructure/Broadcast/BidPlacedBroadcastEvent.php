@@ -6,7 +6,7 @@ namespace App\Modules\Auction\Infrastructure\Broadcast;
 
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 
@@ -19,6 +19,11 @@ use Illuminate\Foundation\Events\Dispatchable;
  * ShouldBroadcastNow (not ShouldBroadcast): this is already dispatched from
  * a background consumer process, not a web request — queuing it again
  * would just add latency for no benefit.
+ *
+ * PresenceChannel, not PrivateChannel (Fase 8, ADR-0012): the channel
+ * upgraded from private-auction.{id} to presence-auction.{id} to carry role
+ * classification and viewer tracking — same auth rule (any authenticated
+ * user), superset of private's guarantees.
  */
 final class BidPlacedBroadcastEvent implements ShouldBroadcastNow
 {
@@ -39,7 +44,7 @@ final class BidPlacedBroadcastEvent implements ShouldBroadcastNow
      */
     public function broadcastOn(): array
     {
-        return [new PrivateChannel("auction.{$this->auctionId}")];
+        return [new PresenceChannel("auction.{$this->auctionId}")];
     }
 
     public function broadcastAs(): string

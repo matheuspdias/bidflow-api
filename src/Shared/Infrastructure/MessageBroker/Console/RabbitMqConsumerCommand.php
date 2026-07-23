@@ -48,6 +48,19 @@ abstract class RabbitMqConsumerCommand extends Command
     abstract protected function routingKey(): string;
 
     /**
+     * Extra routing keys this consumer's queue also binds to, for consumers
+     * that react to more than one event type (e.g. joined AND left). Kept
+     * separate from routingKey() so every existing single-key consumer is
+     * unaffected — this defaults to none.
+     *
+     * @return list<string>
+     */
+    protected function additionalRoutingKeys(): array
+    {
+        return [];
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      */
     abstract protected function process(array $payload): void;
@@ -76,6 +89,11 @@ abstract class RabbitMqConsumerCommand extends Command
             new AMQPTable(['x-dead-letter-exchange' => "{$exchange}.dlx"]),
         );
         $channel->queue_bind($queue, $exchange, $this->routingKey());
+
+        foreach ($this->additionalRoutingKeys() as $additionalRoutingKey) {
+            $channel->queue_bind($queue, $exchange, $additionalRoutingKey);
+        }
+
         $channel->basic_qos(0, 1, false);
 
         $limit = (int) $this->option('limit');
@@ -86,7 +104,8 @@ abstract class RabbitMqConsumerCommand extends Command
             $processedCount++;
         });
 
-        $this->info("Consuming [{$this->routingKey()}] on queue [{$queue}] as [{$this->consumerName()}]...");
+        $routingKeys = implode(', ', [$this->routingKey(), ...$this->additionalRoutingKeys()]);
+        $this->info("Consuming [{$routingKeys}] on queue [{$queue}] as [{$this->consumerName()}]...");
 
         $timeout = (float) $this->option('timeout');
 
@@ -191,7 +210,7 @@ abstract class RabbitMqConsumerCommand extends Command
         ]);
 
         if ($retryCount < self::MAX_RETRIES) {
-            $this->republishWithIncrementedRetry($message, $retryCount + 1);
+            $this->republishWithIncrementedRetry($message, $retryCount + 1, $message->getRoutingKey() ?? $this->routingKey());
             $message->ack();
 
             return;
@@ -216,7 +235,7 @@ abstract class RabbitMqConsumerCommand extends Command
         return (int) ($headers->getNativeData()['x-retry-count'] ?? 0);
     }
 
-    private function republishWithIncrementedRetry(AMQPMessage $message, int $retryCount): void
+    private function republishWithIncrementedRetry(AMQPMessage $message, int $retryCount, string $routingKey): void
     {
         $retryMessage = new AMQPMessage($message->getBody(), [
             'content_type' => 'application/json',
@@ -224,6 +243,6 @@ abstract class RabbitMqConsumerCommand extends Command
             'application_headers' => new AMQPTable(['x-retry-count' => $retryCount]),
         ]);
 
-        $message->getChannel()?->basic_publish($retryMessage, config('rabbitmq.exchange'), $this->routingKey());
+        $message->getChannel()?->basic_publish($retryMessage, config('rabbitmq.exchange'), $routingKey);
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+use App\Modules\Auction\Domain\Repositories\AuctionRepository;
+use App\Modules\Auction\Domain\Repositories\BidRepository;
 use Illuminate\Support\Facades\Broadcast;
 
 Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
@@ -8,12 +10,29 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 
 /**
  * Any authenticated user can watch any auction's live updates — this is a
- * public auction house, not a private negotiation. Role classification
- * (seller/bidder/viewer) for the presence channel comes in Fase 8; this
- * private channel only needs to confirm "a real, logged-in user", which the
- * Sanctum guard on /broadcasting/auth already enforces before this callback
- * ever runs (see ADR-0011).
+ * public auction house, not a private negotiation. The Sanctum guard on
+ * /broadcasting/auth already enforces "a real, logged-in user" before this
+ * callback ever runs (see ADR-0011); returning an array (rather than true)
+ * is what makes this a presence channel — Laravel infers presence vs.
+ * private from the requested channel's prefix, not from a separate route,
+ * so the same handler that used to return a bool for private-auction.{id}
+ * now classifies a role for presence-auction.{id} (Fase 8, ADR-0012).
+ *
+ * "seller"/"bidder" reflect this specific auction, not a site-wide role —
+ * the seller of auction A is just a "viewer" on auction B's channel.
  */
 Broadcast::channel('auction.{auctionId}', function ($user, int $auctionId) {
-    return true;
+    $auction = app(AuctionRepository::class)->findById($auctionId);
+
+    if ($auction === null) {
+        return false;
+    }
+
+    $role = match (true) {
+        $auction->sellerId() === (int) $user->id => 'seller',
+        app(BidRepository::class)->hasBidderBidOn($auctionId, (int) $user->id) => 'bidder',
+        default => 'viewer',
+    };
+
+    return ['id' => (int) $user->id, 'role' => $role];
 });

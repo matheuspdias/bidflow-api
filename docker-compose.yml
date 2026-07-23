@@ -179,6 +179,26 @@ services:
     networks:
       - bidflow
 
+  # Fase 8: reacts to auction.user_joined/auction.user_left (published from
+  # inside the reverb container itself — see ADR-0012) and broadcasts the
+  # live viewer count back out over the same presence channel.
+  viewer-count-consumer:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: bidflow-viewer-count-consumer
+    command: php artisan consume:viewer-count
+    env_file:
+      - .env
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - app
+      - rabbitmq
+      - reverb
+    networks:
+      - bidflow
+
 networks:
   bidflow:
     driver: bridge

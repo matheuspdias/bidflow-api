@@ -150,12 +150,13 @@ flowchart LR
 
 ### Estratégia WebSocket
 
-Ver [ADR-0011](docs/adr/0011-reverb-websocket.md) (Reverb vs Pusher/Ably + história de escala via Redis) e [docs/websocket-events.md](docs/websocket-events.md) (payload de cada evento, atualizado a cada fase).
+Ver [ADR-0011](docs/adr/0011-reverb-websocket.md) (Reverb vs Pusher/Ably + história de escala via Redis), [ADR-0012](docs/adr/0012-presence-channel-without-webhooks.md) (canal de presence sem webhooks do Reverb) e [docs/websocket-events.md](docs/websocket-events.md) (payload de cada evento, atualizado a cada fase).
 
 - Laravel Reverb (self-hosted, protocolo Pusher — compatível com `laravel-echo`/`pusher-js` sem modificação) em vez de Pusher/Ably (SaaS de terceiro).
-- Canal privado `private-auction.{id}`: qualquer usuário autenticado pode se inscrever — é uma casa de leilões pública. Autenticação via `POST /broadcasting/auth`, que precisou de duas correções específicas para funcionar com token Sanctum em vez de sessão (ver ADR-0011): `withBroadcasting(..., ['middleware' => ['auth:sanctum']])` no lugar do atalho padrão, e `shouldRenderJsonWhen` estendido para cobrir `broadcasting/*` (sem isso, uma falha de auth vira 500 em vez de 401 — Laravel tenta redirecionar pra uma rota `login` que não existe neste backend).
+- Canal de presence `presence-auction.{id}` (upgrade de `private-auction.{id}` na Fase 8): qualquer usuário autenticado pode se inscrever — é uma casa de leilões pública — e a resposta de auth classifica seu papel (`seller`/`bidder`/`viewer`) *relativo àquele leilão*. Autenticação via `POST /broadcasting/auth`, que precisou de duas correções específicas para funcionar com token Sanctum em vez de sessão (ver ADR-0011): `withBroadcasting(..., ['middleware' => ['auth:sanctum']])` no lugar do atalho padrão, e `shouldRenderJsonWhen` estendido para cobrir `broadcasting/*` (sem isso, uma falha de auth vira 500 em vez de 401 — Laravel tenta redirecionar pra uma rota `login` que não existe neste backend).
 - `bid.placed` (entrada de feed) e `auction.updated` (resync de estado resumido) são eventos deliberadamente separados, ambos disparados pelo `BroadcastBidConsumer` reagindo ao integration event `auction.bid_placed` — fora do ciclo de vida da request HTTP que criou o lance.
-- Validado ponta a ponta com um cliente WebSocket real (protocolo Pusher puro, sem Echo): uma chamada REST de lance produz os dois eventos no cliente WS em poucos milissegundos.
+- **Reverb não tem webhooks** (a suposição original do plano — confirmado por inspeção direta do pacote): join/leave de presence só existe como quadros internos do protocolo Pusher trocados dentro do próprio processo do Reverb, nunca como callback HTTP. `viewers.updated` (contagem ao vivo, separada de `participant_count`) é sustentado observando os próprios eventos internos do Laravel que o `reverb:start` dispara (`MessageSent`, `ChannelCreated`, `ChannelRemoved`) — ver ADR-0012 para as duas lacunas de borda (primeiro a entrar, último a sair) e como cada uma foi coberta.
+- Validado ponta a ponta com clientes WebSocket reais (protocolo Pusher puro, sem Echo): uma chamada REST de lance produz os eventos de feed/resync no cliente WS em poucos milissegundos; duas sessões concorrentes se veem entrar/sair do canal de presence em tempo real com a contagem de espectadores sempre correta, do primeiro a se inscrever ao último a sair.
 
 ## Modelo de domínio
 
@@ -269,6 +270,7 @@ A API fica disponível em `http://localhost:8000` (porta configurável via `APP_
 | `bid-history-consumer` | Consumer RabbitMQ: read model `bid_history` | — |
 | `bid-notification-consumer` | Consumer RabbitMQ: notificação de outbid (stub — Fase 11) | — |
 | `bid-broadcast-consumer` | Consumer RabbitMQ: broadcast WebSocket (stub — Fase 7) | — |
+| `viewer-count-consumer` | Consumer RabbitMQ: contagem de espectadores ao vivo (`viewers.updated` — Fase 8) | — |
 
 > O loop de broadcast do timer (Fase 10) será adicionado como serviço próprio quando introduzido.
 
@@ -284,6 +286,7 @@ Ver [ADR-0010](docs/adr/0010-at-least-once-idempotent-consumers.md) para o racio
 | `domain_events.persist_bid_history` | fila | `auction.bid_placed` | Popula o read model `bid_history` (CQRS, separado da tabela transacional `bids`) |
 | `domain_events.send_bid_notification` | fila | `auction.bid_placed` | Notifica o lance superado — corpo real na Fase 11 |
 | `domain_events.broadcast_bid` | fila | `auction.bid_placed` | Broadcast WebSocket — corpo real na Fase 7 |
+| `domain_events.broadcast_viewer_count` | fila | `auction.user_joined`, `auction.user_left` | Broadcast `viewers.updated` — única fila com mais de uma routing key (Fase 8) |
 
 Cada consumer declara sua própria fila (durável, com `x-dead-letter-exchange` apontando para `domain_events.dlx`) e é idempotente via a tabela `processed_events` (chave `event_id` + nome do consumer) — uma mensagem redelivered (reinício do consumer, falha de rede antes do `ack`) nunca produz efeito duplicado.
 
@@ -294,7 +297,7 @@ Cada consumer declara sua própria fila (durável, com `x-dead-letter-exchange` 
 - `tests/Architecture` — regras estruturais via `pestphp/pest-plugin-arch`: fronteiras de módulo (nenhum módulo acessa classes internas de outro) e camada `Domain` de **cada** módulo (não só `Shared`) livre de dependência de `Illuminate\*` e de exceções genéricas (`Exception`/`RuntimeException`).
 - `tests/Concurrency` — testes que forjam concorrência real de SO (`pcntl_fork`), não simulada dentro de um único processo. Deliberadamente **fora** de `RefreshDatabase` (cada processo forkado precisa enxergar dados já commitados por outra sessão de banco) — cada teste confirma e limpa seus próprios dados manualmente. Ver ADR-0006.
 
-> **Atenção ao rodar os testes de consumer localmente**: o banco de testes é isolado (`bidflow_testing`), mas o RabbitMQ **não** — os testes em `tests/Feature/Auction/BidConsumerTest.php` usam as mesmas filas (`domain_events.*`) que os serviços consumer do `docker-compose` (`auction-stats-consumer`, `bid-history-consumer`, etc.). Rodar a suíte com esses serviços ativos faz duas instâncias do mesmo consumer competirem pela mesma mensagem — o comportamento correto (só uma processa, ver ADR-0010), mas os testes esperam controlar exatamente quantas mensagens cada fila recebe, então os containers e a suíte acabam brigando pela mesma fila. Pare os consumers antes de rodar os testes: `docker compose stop auction-stats-consumer bid-history-consumer bid-notification-consumer bid-broadcast-consumer`.
+> **Atenção ao rodar os testes de consumer localmente**: o banco de testes é isolado (`bidflow_testing`), mas o RabbitMQ **não** — os testes em `tests/Feature/Auction/BidConsumerTest.php` usam as mesmas filas (`domain_events.*`) que os serviços consumer do `docker-compose` (`auction-stats-consumer`, `bid-history-consumer`, etc.). Rodar a suíte com esses serviços ativos faz duas instâncias do mesmo consumer competirem pela mesma mensagem — o comportamento correto (só uma processa, ver ADR-0010), mas os testes esperam controlar exatamente quantas mensagens cada fila recebe, então os containers e a suíte acabam brigando pela mesma fila. Pare os consumers antes de rodar os testes: `docker compose stop auction-stats-consumer bid-history-consumer bid-notification-consumer bid-broadcast-consumer viewer-count-consumer`.
 
 ## Índice de ADRs
 
@@ -311,5 +314,6 @@ Cada consumer declara sua própria fila (durável, com `x-dead-letter-exchange` 
 | [0009](docs/adr/0009-redis-horizon-vs-rabbitmq.md) | Redis + Horizon (jobs internos) vs RabbitMQ (integration events) |
 | [0010](docs/adr/0010-at-least-once-idempotent-consumers.md) | Entrega at-least-once e padrão de consumer idempotente |
 | [0011](docs/adr/0011-reverb-websocket.md) | Laravel Reverb para WebSocket |
+| [0012](docs/adr/0012-presence-channel-without-webhooks.md) | Canal de presence sem webhooks do Reverb |
 
 *(demais ADRs adicionadas conforme as fases avançam)*
