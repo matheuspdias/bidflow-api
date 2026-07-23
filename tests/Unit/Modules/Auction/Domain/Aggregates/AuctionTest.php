@@ -2,6 +2,7 @@
 
 use App\Modules\Auction\Domain\Aggregates\Auction;
 use App\Modules\Auction\Domain\Events\AuctionCancelled;
+use App\Modules\Auction\Domain\Events\AuctionExtended;
 use App\Modules\Auction\Domain\Events\AuctionStarted;
 use App\Modules\Auction\Domain\Events\BidPlaced;
 use App\Modules\Auction\Domain\Exceptions\AuctionClosedException;
@@ -30,6 +31,26 @@ function makeScheduledAuction(int $sellerId = 1): Auction
         ),
     );
     $auction->assignId(1);
+
+    return $auction;
+}
+
+function makeActiveAuctionEndingAt(DateTimeImmutable $endsAt): Auction
+{
+    $auction = Auction::schedule(
+        sellerId: 1,
+        categoryId: 1,
+        name: 'Vintage Watch',
+        description: 'A fine vintage watch.',
+        startingBid: Money::of('100.00', 'USD'),
+        minimumIncrement: Money::of('10.00', 'USD'),
+        buyNowPrice: null,
+        reservePrice: null,
+        schedule: DateRange::of(new DateTimeImmutable('-1 hour'), $endsAt),
+    );
+    $auction->assignId(1);
+    $auction->activate();
+    $auction->pullDomainEvents();
 
     return $auction;
 }
@@ -229,4 +250,63 @@ test('markHighestBid records the winning bid id', function () {
     $auction->markHighestBid(42);
 
     expect($auction->highestBidId())->toBe(42);
+});
+
+test('extendIfWithinAntiSnipingWindow pushes ends_at forward and records AuctionExtended when inside the window', function () {
+    $now = new DateTimeImmutable();
+    $originalEndsAt = $now->modify('+60 seconds');
+    $auction = makeActiveAuctionEndingAt($originalEndsAt);
+
+    $extended = $auction->extendIfWithinAntiSnipingWindow($now, windowSeconds: 120, extensionSeconds: 120, maxExtensions: 5);
+
+    expect($extended)->toBeTrue()
+        ->and($auction->extensionsCount())->toBe(1)
+        ->and($auction->dateRange()->end->getTimestamp())->toBe($originalEndsAt->getTimestamp() + 120);
+
+    $events = $auction->pullDomainEvents();
+    expect($events)->toHaveCount(1)
+        ->and($events[0])->toBeInstanceOf(AuctionExtended::class)
+        ->and($events[0]->extensionsCount)->toBe(1);
+});
+
+test('extendIfWithinAntiSnipingWindow does nothing when the auction is not close to ending', function () {
+    $now = new DateTimeImmutable();
+    $auction = makeActiveAuctionEndingAt($now->modify('+1 hour'));
+
+    $extended = $auction->extendIfWithinAntiSnipingWindow($now, windowSeconds: 120, extensionSeconds: 120, maxExtensions: 5);
+
+    expect($extended)->toBeFalse()
+        ->and($auction->extensionsCount())->toBe(0)
+        ->and($auction->pullDomainEvents())->toBe([]);
+});
+
+test('extendIfWithinAntiSnipingWindow does nothing once ends_at is already in the past', function () {
+    $now = new DateTimeImmutable();
+    $auction = makeActiveAuctionEndingAt($now->modify('-5 seconds'));
+
+    $extended = $auction->extendIfWithinAntiSnipingWindow($now, windowSeconds: 120, extensionSeconds: 120, maxExtensions: 5);
+
+    expect($extended)->toBeFalse()
+        ->and($auction->extensionsCount())->toBe(0);
+});
+
+test('extendIfWithinAntiSnipingWindow stops once maxExtensions is reached', function () {
+    // window (500s) comfortably larger than extensionSeconds (10s): each
+    // extension only pushes ends_at 10s further out, so the next check
+    // (fired at roughly the same $now) still lands inside the window —
+    // isolating "hit the max" from "fell outside the window" as the reason
+    // extending stops.
+    $now = new DateTimeImmutable();
+    $auction = makeActiveAuctionEndingAt($now->modify('+10 seconds'));
+
+    for ($i = 0; $i < 3; $i++) {
+        $auction->extendIfWithinAntiSnipingWindow($now, windowSeconds: 500, extensionSeconds: 10, maxExtensions: 3);
+    }
+
+    expect($auction->extensionsCount())->toBe(3);
+
+    $extended = $auction->extendIfWithinAntiSnipingWindow($now, windowSeconds: 500, extensionSeconds: 10, maxExtensions: 3);
+
+    expect($extended)->toBeFalse()
+        ->and($auction->extensionsCount())->toBe(3);
 });

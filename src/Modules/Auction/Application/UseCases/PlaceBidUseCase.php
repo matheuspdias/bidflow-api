@@ -15,6 +15,7 @@ use App\Modules\Auction\Domain\Repositories\BidAuditLogRepository;
 use App\Modules\Auction\Domain\Repositories\BidRepository;
 use App\Shared\Domain\Contracts\BidderLookup;
 use App\Shared\Domain\ValueObjects\Money;
+use DateTimeImmutable;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
@@ -76,6 +77,12 @@ final class PlaceBidUseCase
             $bid = $this->bids->create($bid);
             $auction->recordBidPlaced($bid);
             $auction->markHighestBid((int) $bid->id());
+            $auction->extendIfWithinAntiSnipingWindow(
+                now: new DateTimeImmutable(),
+                windowSeconds: (int) config('auctions.anti_sniping.window_seconds'),
+                extensionSeconds: (int) config('auctions.anti_sniping.extension_seconds'),
+                maxExtensions: (int) config('auctions.anti_sniping.max_extensions'),
+            );
             $this->auctions->save($auction);
 
             $this->auditLogs->record($auctionId, $bidderId, $amount, $ipAddress, $userAgent, 'accepted', null);

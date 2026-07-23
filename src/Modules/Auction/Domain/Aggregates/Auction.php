@@ -6,6 +6,7 @@ namespace App\Modules\Auction\Domain\Aggregates;
 
 use App\Modules\Auction\Domain\Entities\Bid;
 use App\Modules\Auction\Domain\Events\AuctionCancelled;
+use App\Modules\Auction\Domain\Events\AuctionExtended;
 use App\Modules\Auction\Domain\Events\AuctionStarted;
 use App\Modules\Auction\Domain\Events\BidPlaced;
 use App\Modules\Auction\Domain\Exceptions\AuctionClosedException;
@@ -46,6 +47,7 @@ final class Auction
         private int $participantCount,
         private int $viewCount,
         private ?int $highestBidId = null,
+        private int $extensionsCount = 0,
     ) {
     }
 
@@ -99,6 +101,7 @@ final class Auction
         int $participantCount,
         int $viewCount,
         ?int $highestBidId = null,
+        int $extensionsCount = 0,
     ): self {
         return new self(
             id: $id,
@@ -116,6 +119,7 @@ final class Auction
             participantCount: $participantCount,
             viewCount: $viewCount,
             highestBidId: $highestBidId,
+            extensionsCount: $extensionsCount,
         );
     }
 
@@ -206,6 +210,41 @@ final class Auction
         $bidId = $bid->id() ?? throw new LogicException('Cannot record BidPlaced for a bid that has not been persisted yet.');
 
         $this->record(new BidPlaced($this->requireId(), $bidId, $bid->bidderId(), $bid->amount(), $bid->placedAt()));
+    }
+
+    /**
+     * Anti-sniping: a bid landing inside windowSeconds of ends_at pushes
+     * ends_at forward by extensionSeconds, capped at maxExtensions per
+     * auction (ADR-0014) — otherwise a bidder could prolong an auction
+     * indefinitely by bidding in the last second of every extension.
+     * Called by PlaceBidUseCase right after placeBid() succeeds, inside the
+     * same transaction — a rejected bid never reaches here.
+     *
+     * Returns whether an extension happened, so the caller knows whether to
+     * treat AuctionExtended as having been raised.
+     */
+    public function extendIfWithinAntiSnipingWindow(
+        DateTimeImmutable $now,
+        int $windowSeconds,
+        int $extensionSeconds,
+        int $maxExtensions,
+    ): bool {
+        if ($this->extensionsCount >= $maxExtensions) {
+            return false;
+        }
+
+        $secondsRemaining = $this->schedule->end->getTimestamp() - $now->getTimestamp();
+
+        if ($secondsRemaining < 0 || $secondsRemaining > $windowSeconds) {
+            return false;
+        }
+
+        $this->schedule = DateRange::of($this->schedule->start, $this->schedule->end->modify("+{$extensionSeconds} seconds"));
+        $this->extensionsCount++;
+
+        $this->record(new AuctionExtended($this->requireId(), $this->schedule->end, $this->extensionsCount, $now));
+
+        return true;
     }
 
     public function markHighestBid(int $bidId): void
@@ -317,5 +356,10 @@ final class Auction
     public function viewCount(): int
     {
         return $this->viewCount;
+    }
+
+    public function extensionsCount(): int
+    {
+        return $this->extensionsCount;
     }
 }

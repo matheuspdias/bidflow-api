@@ -34,6 +34,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'participant_count',
     'view_count',
     'highest_bid_id',
+    'extensions_count',
 ])]
 class Auction extends Model
 {
@@ -57,6 +58,7 @@ class Auction extends Model
             'current_value' => 'decimal:2',
             'participant_count' => 'integer',
             'view_count' => 'integer',
+            'extensions_count' => 'integer',
         ];
     }
 

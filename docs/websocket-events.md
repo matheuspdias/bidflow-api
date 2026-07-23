@@ -50,6 +50,34 @@ Disparado por: `BroadcastViewerCountConsumer` (Fase 8), reagindo a `auction.user
 }
 ```
 
+## `timer.updated`
+
+Tick de contagem regressiva sincronizada — corrige o drift do relógio do cliente perto do fim do leilão, não é a fonte primária da contagem (o cliente já tem `ends_at` desde a Fase 3/9 e pode contar sozinho enquanto falta muito tempo).
+
+Disparado por: `AuctionTimerBroadcastCommand` (Fase 10) — um processo próprio, não um consumer RabbitMQ, rodando a cada segundo. Só transmitido para leilões `ACTIVE` com `ends_at` dentro de `config('auctions.timer.broadcast_window_seconds')` (default 300s) — ver ADR-0014.
+
+```json
+{
+    "auction_id": 33,
+    "seconds_remaining": 47,
+    "ends_at": "2026-07-23T02:10:00+00:00"
+}
+```
+
+## `auction.extended`
+
+O anti-sniping empurrou `ends_at` para frente. Cliente deve resincronizar imediatamente o prazo exibido, sem esperar o próximo `timer.updated`.
+
+Disparado por: `BroadcastAuctionExtendedConsumer` (Fase 10), reagindo ao integration event `auction.auction_extended` (publicado pelo próprio agregado `Auction`, dentro da mesma transação que aceitou o lance — ver ADR-0014).
+
+```json
+{
+    "auction_id": 33,
+    "new_ends_at": "2026-07-23T02:12:00+00:00",
+    "extensions_count": 1
+}
+```
+
 ## Autenticação do canal
 
 `POST /broadcasting/auth` (Bearer token Sanctum — **não** cookie/sessão, ver ADR-0011) com `channel_name` (`presence-auction.{id}`) e `socket_id`. Qualquer usuário autenticado pode se inscrever — a resposta inclui `channel_data` com a classificação de papel daquele usuário *para aquele leilão específico* (ADR-0012):
@@ -62,7 +90,5 @@ Disparado por: `BroadcastViewerCountConsumer` (Fase 8), reagindo a `auction.user
 
 ## Pendente (fases futuras)
 
-- `timer.updated` — tempo restante do leilão, a cada segundo (Fase 10).
-- `auction.extended` — anti-sniping estendeu o prazo (Fase 10).
 - `auction.ended` — leilão encerrado, com ou sem vencedor (Fase 11).
 - `notification.created` — nova notificação para o usuário, canal `private-user.{id}` (Fase 11).

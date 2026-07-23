@@ -199,6 +199,44 @@ services:
     networks:
       - bidflow
 
+  # Fase 10: reacts to auction.auction_extended (anti-sniping) and
+  # broadcasts auction.extended.
+  auction-extended-consumer:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: bidflow-auction-extended-consumer
+    command: php artisan consume:auction-extended-broadcast
+    env_file:
+      - .env
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - app
+      - rabbitmq
+      - reverb
+    networks:
+      - bidflow
+
+  # Fase 10: not a RabbitMQ consumer — a clock. Ticks every second,
+  # broadcasting timer.updated for active auctions in their final stretch
+  # (config('auctions.timer.broadcast_window_seconds')).
+  auction-timer:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: bidflow-auction-timer
+    command: php artisan auctions:broadcast-timer
+    env_file:
+      - .env
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - app
+      - reverb
+    networks:
+      - bidflow
+
 networks:
   bidflow:
     driver: bridge
