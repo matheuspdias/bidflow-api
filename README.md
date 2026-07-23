@@ -304,7 +304,7 @@ GET /api/dashboard/technical   (auth, ability dashboard:read)
 Pré-requisitos: Docker + Docker Compose, nada mais — PHP e Composer rodam dentro dos containers.
 
 ```bash
-git clone <repo> bidflow-api
+git clone [<repo>](https://github.com/matheuspdias/bidflow-api.git)
 cd bidflow-api
 cp .env.example .env
 
