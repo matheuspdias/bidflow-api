@@ -310,6 +310,27 @@ services:
     networks:
       - bidflow
 
+  # Fase 15: not a RabbitMQ consumer — a clock, like dashboard-business-
+  # broadcaster. Ticks every 5 seconds, broadcasting WS connection count +
+  # per-consumer queue depth/throughput/latency for the ops dashboard
+  # (technical.updated, private-dashboard-technical).
+  dashboard-technical-broadcaster:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: bidflow-dashboard-technical-broadcaster
+    command: php artisan dashboard:broadcast-technical
+    env_file:
+      - .env
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - app
+      - reverb
+      - rabbitmq
+    networks:
+      - bidflow
+
 networks:
   bidflow:
     driver: bridge

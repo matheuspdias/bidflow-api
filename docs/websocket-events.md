@@ -94,7 +94,7 @@ Disparado por: `BroadcastAuctionEndedConsumer` (Fase 11), reagindo ao integratio
 
 ## `dashboard.updated` (canal `private-dashboard`)
 
-O único evento deste documento fora de `presence-auction.{auctionId}` — um retrato completo das métricas de negócio, não um delta. Canal privado, não presence: ver ADR-0018 para por que nenhuma classificação de papel existe aqui ainda.
+Um retrato completo das métricas de negócio, não um delta. Canal privado, não presence: ver ADR-0018 para por que nenhuma classificação de papel existe aqui ainda.
 
 Disparado por: `BroadcastBusinessMetricsCommand` (Fase 14), um processo próprio (como o timer/closer) recalculando e transmitindo a cada 5 segundos.
 
@@ -105,6 +105,30 @@ Disparado por: `BroadcastBusinessMetricsCommand` (Fase 14), um processo próprio
     "total_revenue": "45230.00",
     "live_viewers_total": 37,
     "generated_at": "2026-07-23T04:06:37+00:00"
+}
+```
+
+## `technical.updated` (canal `private-dashboard-technical`)
+
+Um retrato completo das métricas técnicas — conexões WebSocket, profundidade/throughput/latência por consumer — mesma lógica de "retrato, não delta" do `dashboard.updated`. Canal separado por ser uma audiência conceitualmente diferente (operação, não negócio), não por acesso hoje restrito de forma diferente — ver ADR-0019.
+
+Disparado por: `BroadcastTechnicalMetricsCommand` (Fase 15), a cada 5 segundos.
+
+```json
+{
+    "websocket": {"connections": 4},
+    "consumers": [
+        {
+            "name": "update_auction_stats",
+            "queue": "domain_events.update_auction_stats",
+            "messages_ready": 0,
+            "messages_unacknowledged": 0,
+            "active_consumers": 1,
+            "processed_total": 1850,
+            "avg_latency_ms": 42
+        }
+    ],
+    "generated_at": "2026-07-23T12:39:21+00:00"
 }
 ```
 

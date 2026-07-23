@@ -47,3 +47,13 @@ Broadcast::channel('auction.{auctionId}', function ($user, int $auctionId) {
 Broadcast::channel('dashboard', function ($user) {
     return true;
 });
+
+/**
+ * Technical dashboard metrics (Fase 15) — same reasoning as 'dashboard'
+ * above, a separate channel only because the two are conceptually
+ * different audiences, not because access is actually restricted
+ * differently today.
+ */
+Broadcast::channel('dashboard-technical', function ($user) {
+    return true;
+});

@@ -10,6 +10,7 @@ use Illuminate\Console\Command;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 use PhpAmqpLib\Message\AMQPMessage;
 use PhpAmqpLib\Wire\AMQPTable;
 use Throwable;
@@ -21,9 +22,9 @@ use Throwable;
  * at-least-once, a message can be redelivered), and a bounded retry that
  * dead-letters after giving up (see ADR-0010).
  *
- * Also the single place Fase 15's processed-count/latency instrumentation
- * will be added — recordMetrics() is the extension point, built now so that
- * phase doesn't need to touch every concrete consumer.
+ * Also where every consumer's processed-count/latency instrumentation for
+ * the technical dashboard (Fase 15, ADR-0019) is recorded — one place, so
+ * that phase didn't need to touch every concrete consumer.
  */
 abstract class RabbitMqConsumerCommand extends Command
 {
@@ -65,10 +66,19 @@ abstract class RabbitMqConsumerCommand extends Command
      */
     abstract protected function process(array $payload): void;
 
+    /**
+     * Two Redis counters per consumer — a running count and a running total
+     * latency in milliseconds, not a stored list of samples. The technical
+     * dashboard (Fase 15) divides one by the other for an average; no
+     * percentiles, no time-windowing — enough to show "is this consumer
+     * keeping up", not a full observability stack.
+     */
     protected function recordMetrics(DateTimeImmutable $occurredAt): void
     {
-        // Fase 15: processed-event counters + latency, added here once —
-        // every consumer gets it for free.
+        $latencyMs = max(0, (int) round((microtime(true) - (float) $occurredAt->format('U.u')) * 1000));
+
+        Redis::incr("metrics:consumer:{$this->consumerName()}:processed_count");
+        Redis::incrby("metrics:consumer:{$this->consumerName()}:total_latency_ms", $latencyMs);
     }
 
     public function handle(): int

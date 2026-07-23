@@ -268,7 +268,36 @@ GET /api/dashboard/business   (auth, ability dashboard:read)
 
 ## Dashboard técnico
 
-*(pendente — Fase 15)*
+Ver [ADR-0019](docs/adr/0019-technical-dashboard.md) para o racional completo.
+
+```
+GET /api/dashboard/technical   (auth, ability dashboard:read)
+```
+
+```json
+{
+    "data": {
+        "websocket": {"connections": 4},
+        "consumers": [
+            {
+                "name": "update_auction_stats",
+                "queue": "domain_events.update_auction_stats",
+                "messages_ready": 0,
+                "messages_unacknowledged": 0,
+                "active_consumers": 1,
+                "processed_total": 1850,
+                "avg_latency_ms": 42
+            }
+        ],
+        "generated_at": "2026-07-23T12:39:21+00:00"
+    }
+}
+```
+
+- `websocket.connections` — via a API HTTP do próprio Reverb (`GET /apps/{id}/connections`), não uma estimativa.
+- `messages_ready`/`messages_unacknowledged`/`active_consumers` — via a API de management do RabbitMQ (plugin já habilitado desde a Fase 0).
+- `processed_total`/`avg_latency_ms` — de contadores no Redis que `RabbitMqConsumerCommand::recordMetrics()` grava a cada evento processado, desde a Fase 6 um método vazio esperando exatamente esta fase.
+- Mesmo retrato transmitido a cada 5s em `technical.updated` (canal privado `dashboard-technical`, ver [docs/websocket-events.md](docs/websocket-events.md)) por `BroadcastTechnicalMetricsCommand`.
 
 ## Rodando via Docker
 
@@ -323,6 +352,7 @@ A API fica disponível em `http://localhost:8000` (porta configurável via `APP_
 | `auction-ended-consumer` | Consumer RabbitMQ: broadcast de encerramento (`auction.ended` — Fase 11) | — |
 | `auction-won-notification-consumer` | Consumer RabbitMQ: notifica o vencedor do leilão (`auction_won` — Fase 11) | — |
 | `dashboard-business-broadcaster` | Não é consumer RabbitMQ — um relógio. Transmite `dashboard.updated` a cada 5s (Fase 14) | — |
+| `dashboard-technical-broadcaster` | Não é consumer RabbitMQ — um relógio. Transmite `technical.updated` a cada 5s (Fase 15) | — |
 
 ### Topologia RabbitMQ
 
@@ -374,5 +404,6 @@ Cada consumer declara sua própria fila (durável, com `x-dead-letter-exchange` 
 | [0016](docs/adr/0016-activity-and-rankings-cross-module-lookups.md) | Histórico, ganhos/perdas e rankings via contratos cross-module |
 | [0017](docs/adr/0017-reconnection-gap-fill.md) | Reconexão via gap-fill por id de lance |
 | [0018](docs/adr/0018-business-dashboard.md) | Dashboard administrativo de negócio |
+| [0019](docs/adr/0019-technical-dashboard.md) | Dashboard técnico |
 
 *(demais ADRs adicionadas conforme as fases avançam)*

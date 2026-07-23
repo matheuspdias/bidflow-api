@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Dashboard\Providers;
 
 use App\Modules\Dashboard\Infrastructure\Console\BroadcastBusinessMetricsCommand;
+use App\Modules\Dashboard\Infrastructure\Console\BroadcastTechnicalMetricsCommand;
 use Illuminate\Support\ServiceProvider;
 
 class DashboardServiceProvider extends ServiceProvider
@@ -19,6 +20,7 @@ class DashboardServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 BroadcastBusinessMetricsCommand::class,
+                BroadcastTechnicalMetricsCommand::class,
             ]);
         }
     }

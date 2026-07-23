@@ -28,6 +28,29 @@ test('consume:auction-stats increments Redis counters for a bid_placed event', f
     expect((int) Redis::get("stats:auctions:{$auctionId}:bid_count"))->toBe(1);
 });
 
+test('every successful consumer run records processed-count and latency metrics (Fase 15)', function () {
+    Redis::del('metrics:consumer:update_auction_stats:processed_count', 'metrics:consumer:update_auction_stats:total_latency_ms');
+
+    ensureConsumerQueueExists('update_auction_stats', 'auction.bid_placed');
+
+    publishRawIntegrationEvent('auction.bid_placed', [
+        'event_id' => (string) Str::uuid(),
+        'auction_id' => random_int(100000, 999999),
+        'bid_id' => 1,
+        'bidder_id' => 2,
+        'amount' => '150.00',
+        'currency' => 'USD',
+        // Backdated a fixed amount so the recorded latency is
+        // deterministic, not "however long the test happened to take".
+        'occurred_at' => now()->subSeconds(2)->toAtomString(),
+    ]);
+
+    $this->artisan('consume:auction-stats', ['--limit' => 1, '--timeout' => 5])->assertSuccessful();
+
+    expect((int) Redis::get('metrics:consumer:update_auction_stats:processed_count'))->toBe(1)
+        ->and((int) Redis::get('metrics:consumer:update_auction_stats:total_latency_ms'))->toBeGreaterThanOrEqual(2000);
+});
+
 test('consume:auction-stats also pushes the bid onto the recent-bids Redis list (Fase 9)', function () {
     ensureConsumerQueueExists('update_auction_stats', 'auction.bid_placed');
 

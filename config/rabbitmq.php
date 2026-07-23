@@ -9,6 +9,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Management HTTP API
+    |--------------------------------------------------------------------------
+    |
+    | The management plugin (already enabled — see the rabbitmq service's
+    | image tag in docker-compose.yml) exposes per-queue depth over plain
+    | HTTP Basic Auth, reusing the same broker credentials. Used by the
+    | technical dashboard (Fase 15) to show queue depth per consumer.
+    |
+    */
+    'management_port' => (int) env('RABBITMQ_MANAGEMENT_PORT', 15672),
+
+    /*
+    |--------------------------------------------------------------------------
     | Domain events exchange
     |--------------------------------------------------------------------------
     |
