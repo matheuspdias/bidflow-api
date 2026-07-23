@@ -10,6 +10,10 @@ use App\Modules\Auction\Domain\Events\BidPlaced;
 use App\Modules\Auction\Domain\Repositories\AuctionRepository;
 use App\Modules\Auction\Domain\Repositories\BidAuditLogRepository;
 use App\Modules\Auction\Domain\Repositories\BidRepository;
+use App\Modules\Auction\Infrastructure\Console\Consumers\BroadcastBidConsumer;
+use App\Modules\Auction\Infrastructure\Console\Consumers\PersistBidHistoryConsumer;
+use App\Modules\Auction\Infrastructure\Console\Consumers\SendBidNotificationConsumer;
+use App\Modules\Auction\Infrastructure\Console\Consumers\UpdateAuctionStatsConsumer;
 use App\Modules\Auction\Infrastructure\Listeners\PublishAuctionCancelledIntegrationEvent;
 use App\Modules\Auction\Infrastructure\Listeners\PublishAuctionStartedIntegrationEvent;
 use App\Modules\Auction\Infrastructure\Listeners\PublishBidPlacedIntegrationEvent;
@@ -33,5 +37,14 @@ class AuctionServiceProvider extends ServiceProvider
         Event::listen(BidPlaced::class, PublishBidPlacedIntegrationEvent::class);
         Event::listen(AuctionStarted::class, PublishAuctionStartedIntegrationEvent::class);
         Event::listen(AuctionCancelled::class, PublishAuctionCancelledIntegrationEvent::class);
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                UpdateAuctionStatsConsumer::class,
+                PersistBidHistoryConsumer::class,
+                SendBidNotificationConsumer::class,
+                BroadcastBidConsumer::class,
+            ]);
+        }
     }
 }

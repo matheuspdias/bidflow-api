@@ -30,7 +30,7 @@ Mostrar, em um sistema funcional de leilões com lances em tempo real, como estr
 | Documentação de API | Scramble (OpenAPI 3.1 gerado a partir do código) |
 | Infraestrutura local | Docker Compose (customizado, não Sail) |
 
-Ver ADR-0009 *(pendente — Fase 5)* para a justificativa da separação entre filas internas (Redis/Horizon) e integration events (RabbitMQ).
+Ver [ADR-0009](docs/adr/0009-redis-horizon-vs-rabbitmq.md) para a justificativa da separação entre filas internas (Redis/Horizon) e integration events (RabbitMQ).
 
 ## Arquitetura
 
@@ -264,8 +264,27 @@ A API fica disponível em `http://localhost:8000` (porta configurável via `APP_
 | `rabbitmq` | Broker de integration events + UI de management | `5672` / `15672` |
 | `reverb` | Servidor WebSocket (Laravel Reverb) | `8080` |
 | `horizon` | Worker das filas Redis (jobs internos, ex.: e-mail) | — |
+| `auction-stats-consumer` | Consumer RabbitMQ: estatísticas de lance (Redis) | — |
+| `bid-history-consumer` | Consumer RabbitMQ: read model `bid_history` | — |
+| `bid-notification-consumer` | Consumer RabbitMQ: notificação de outbid (stub — Fase 11) | — |
+| `bid-broadcast-consumer` | Consumer RabbitMQ: broadcast WebSocket (stub — Fase 7) | — |
 
-> Consumers de RabbitMQ e o loop de broadcast do timer serão adicionados como serviços próprios nas fases em que forem introduzidos (ver tabela de topologia RabbitMQ, pendente — Fase 6).
+> O loop de broadcast do timer (Fase 10) será adicionado como serviço próprio quando introduzido.
+
+### Topologia RabbitMQ
+
+Ver [ADR-0010](docs/adr/0010-at-least-once-idempotent-consumers.md) para o racional completo (entrega at-least-once, idempotência, retry+dead-letter).
+
+| Exchange/Fila | Tipo | Routing key | Propósito |
+|---|---|---|---|
+| `domain_events` | topic | — | Exchange único para todos os integration events do sistema |
+| `domain_events.dlx` | fanout | — | Dead-letter exchange — destino final após retries esgotados |
+| `domain_events.update_auction_stats` | fila | `auction.bid_placed` | Incrementa contadores de lance no Redis |
+| `domain_events.persist_bid_history` | fila | `auction.bid_placed` | Popula o read model `bid_history` (CQRS, separado da tabela transacional `bids`) |
+| `domain_events.send_bid_notification` | fila | `auction.bid_placed` | Notifica o lance superado — corpo real na Fase 11 |
+| `domain_events.broadcast_bid` | fila | `auction.bid_placed` | Broadcast WebSocket — corpo real na Fase 7 |
+
+Cada consumer declara sua própria fila (durável, com `x-dead-letter-exchange` apontando para `domain_events.dlx`) e é idempotente via a tabela `processed_events` (chave `event_id` + nome do consumer) — uma mensagem redelivered (reinício do consumer, falha de rede antes do `ack`) nunca produz efeito duplicado.
 
 ## Estrutura de testes
 
@@ -273,6 +292,8 @@ A API fica disponível em `http://localhost:8000` (porta configurável via `APP_
 - `tests/Feature` — testes de ponta a ponta via HTTP, rodando contra Postgres real (`bidflow_testing`), não SQLite — necessário desde já porque os testes de concorrência de lances (Fase 4) dependem de locking real do Postgres (`SELECT ... FOR UPDATE`).
 - `tests/Architecture` — regras estruturais via `pestphp/pest-plugin-arch`: fronteiras de módulo (nenhum módulo acessa classes internas de outro) e camada `Domain` de **cada** módulo (não só `Shared`) livre de dependência de `Illuminate\*` e de exceções genéricas (`Exception`/`RuntimeException`).
 - `tests/Concurrency` — testes que forjam concorrência real de SO (`pcntl_fork`), não simulada dentro de um único processo. Deliberadamente **fora** de `RefreshDatabase` (cada processo forkado precisa enxergar dados já commitados por outra sessão de banco) — cada teste confirma e limpa seus próprios dados manualmente. Ver ADR-0006.
+
+> **Atenção ao rodar os testes de consumer localmente**: o banco de testes é isolado (`bidflow_testing`), mas o RabbitMQ **não** — os testes em `tests/Feature/Auction/BidConsumerTest.php` usam as mesmas filas (`domain_events.*`) que os serviços consumer do `docker-compose` (`auction-stats-consumer`, `bid-history-consumer`, etc.). Rodar a suíte com esses serviços ativos faz duas instâncias do mesmo consumer competirem pela mesma mensagem — o comportamento correto (só uma processa, ver ADR-0010), mas os testes esperam controlar exatamente quantas mensagens cada fila recebe, então os containers e a suíte acabam brigando pela mesma fila. Pare os consumers antes de rodar os testes: `docker compose stop auction-stats-consumer bid-history-consumer bid-notification-consumer bid-broadcast-consumer`.
 
 ## Índice de ADRs
 
@@ -287,5 +308,6 @@ A API fica disponível em `http://localhost:8000` (porta configurável via `APP_
 | [0007](docs/adr/0007-bid-idempotency-strategy.md) | Estratégia de idempotency key para lances |
 | [0008](docs/adr/0008-domain-vs-integration-events.md) | Domain events vs integration events |
 | [0009](docs/adr/0009-redis-horizon-vs-rabbitmq.md) | Redis + Horizon (jobs internos) vs RabbitMQ (integration events) |
+| [0010](docs/adr/0010-at-least-once-idempotent-consumers.md) | Entrega at-least-once e padrão de consumer idempotente |
 
 *(demais ADRs adicionadas conforme as fases avançam)*

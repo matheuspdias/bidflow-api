@@ -34,6 +34,19 @@ jobs:
           --health-timeout 5s
           --health-retries 10
 
+      rabbitmq:
+        image: rabbitmq:3.13-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: bidflow
+          RABBITMQ_DEFAULT_PASS: secret
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -67,6 +80,13 @@ jobs:
       - name: Run PHPStan
         run: ./vendor/bin/phpstan analyse --no-progress --memory-limit=512M
 
+      - name: Declare RabbitMQ exchanges
+        env:
+          RABBITMQ_HOST: 127.0.0.1
+          RABBITMQ_USER: bidflow
+          RABBITMQ_PASSWORD: secret
+        run: php artisan rabbitmq:setup
+
       - name: Run Pest
         env:
           DB_CONNECTION: pgsql
@@ -76,4 +96,7 @@ jobs:
           DB_USERNAME: bidflow
           DB_PASSWORD: secret
           REDIS_HOST: 127.0.0.1
+          RABBITMQ_HOST: 127.0.0.1
+          RABBITMQ_USER: bidflow
+          RABBITMQ_PASSWORD: secret
         run: ./vendor/bin/pest --ci

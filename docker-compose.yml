@@ -109,6 +109,76 @@ services:
     networks:
       - bidflow
 
+  # --- RabbitMQ consumers (Fase 6) ---
+  # One service per consumer so each scales independently (e.g. more
+  # replicas of bid-history-consumer under load without touching the
+  # others). All four bind their own queue to the same domain_events
+  # exchange/routing key — see docs/adr/0010-at-least-once-idempotent-consumers.md.
+
+  auction-stats-consumer:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: bidflow-auction-stats-consumer
+    command: php artisan consume:auction-stats
+    env_file:
+      - .env
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - app
+      - rabbitmq
+    networks:
+      - bidflow
+
+  bid-history-consumer:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: bidflow-bid-history-consumer
+    command: php artisan consume:bid-history
+    env_file:
+      - .env
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - app
+      - rabbitmq
+    networks:
+      - bidflow
+
+  bid-notification-consumer:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: bidflow-bid-notification-consumer
+    command: php artisan consume:bid-notifications
+    env_file:
+      - .env
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - app
+      - rabbitmq
+    networks:
+      - bidflow
+
+  bid-broadcast-consumer:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: bidflow-bid-broadcast-consumer
+    command: php artisan consume:bid-broadcast
+    env_file:
+      - .env
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - app
+      - rabbitmq
+    networks:
+      - bidflow
+
 networks:
   bidflow:
     driver: bridge
