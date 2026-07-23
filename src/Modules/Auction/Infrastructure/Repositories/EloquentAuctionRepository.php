@@ -96,6 +96,7 @@ final class EloquentAuctionRepository implements AuctionRepository
             'view_count' => $auction->viewCount(),
             'highest_bid_id' => $auction->highestBidId(),
             'extensions_count' => $auction->extensionsCount(),
+            'winner_id' => $auction->winnerId(),
         ];
     }
 
@@ -120,6 +121,7 @@ final class EloquentAuctionRepository implements AuctionRepository
             viewCount: $model->view_count,
             highestBidId: $model->highest_bid_id,
             extensionsCount: $model->extensions_count,
+            winnerId: $model->winner_id,
         );
     }
 }

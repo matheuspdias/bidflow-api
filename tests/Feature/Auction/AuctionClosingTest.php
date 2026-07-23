@@ -17,7 +17,9 @@ test('auctions:close-ended closes an ended active auction and declares the highe
 
     $this->artisan('auctions:close-ended', ['--iterations' => 1])->assertSuccessful();
 
-    expect($auction->fresh()->status)->toBe('closed');
+    $auction->refresh();
+    expect($auction->status)->toBe('closed')
+        ->and($auction->winner_id)->toBe($bidder->id);
 });
 
 test('auctions:close-ended declares no winner when the reserve price was never met', function () {
@@ -38,7 +40,9 @@ test('auctions:close-ended declares no winner when the reserve price was never m
     $this->artisan('auctions:close-ended', ['--iterations' => 1])->assertSuccessful();
     $this->artisan('consume:auction-ended-broadcast', ['--limit' => 1, '--timeout' => 5])->assertSuccessful();
 
-    expect($auction->fresh()->status)->toBe('closed');
+    $refreshed = $auction->fresh();
+    expect($refreshed->status)->toBe('closed')
+        ->and($refreshed->winner_id)->toBeNull();
 
     Log::shouldHaveReceived('info')->withArgs(function (string $message) use ($auction) {
         return str_contains($message, 'Broadcasting [auction.ended]')

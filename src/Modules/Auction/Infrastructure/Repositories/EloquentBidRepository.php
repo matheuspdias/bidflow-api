@@ -57,7 +57,15 @@ final class EloquentBidRepository implements BidRepository
 
         return BidModel::query()
             ->where('auction_id', $auctionId)
-            ->latest('created_at')
+            // created_at alone isn't a reliable tiebreaker — Postgres
+            // timestamp columns default to 0 fractional-second precision
+            // (Laravel's timestamp() migration helper), so two bids landing
+            // in the same second (very possible with real users bidding in
+            // quick succession) would sort arbitrarily without id as a
+            // secondary key. id is monotonically increasing with insertion
+            // order, which created_at alone doesn't guarantee to expose.
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->limit($limit)
             ->get()
             ->map(fn (BidModel $model) => Bid::reconstitute(

@@ -319,7 +319,8 @@ test('close declares the highest bidder the winner when there is no reserve pric
 
     $auction->close(2, Money::of('110.00', 'USD'));
 
-    expect($auction->status())->toBe(AuctionStatus::CLOSED);
+    expect($auction->status())->toBe(AuctionStatus::CLOSED)
+        ->and($auction->winnerId())->toBe(2);
 
     $events = $auction->pullDomainEvents();
     expect($events)->toHaveCount(1)
@@ -332,6 +333,8 @@ test('close declares no winner when nobody bid', function () {
     $auction = makeActiveAuctionEndingAt(new DateTimeImmutable('-1 second'));
 
     $auction->close(null, null);
+
+    expect($auction->winnerId())->toBeNull();
 
     $events = $auction->pullDomainEvents();
     expect($events[0]->winnerId)->toBeNull();

@@ -49,6 +49,7 @@ final class Auction
         private int $viewCount,
         private ?int $highestBidId = null,
         private int $extensionsCount = 0,
+        private ?int $winnerId = null,
     ) {
     }
 
@@ -103,6 +104,7 @@ final class Auction
         int $viewCount,
         ?int $highestBidId = null,
         int $extensionsCount = 0,
+        ?int $winnerId = null,
     ): self {
         return new self(
             id: $id,
@@ -121,6 +123,7 @@ final class Auction
             viewCount: $viewCount,
             highestBidId: $highestBidId,
             extensionsCount: $extensionsCount,
+            winnerId: $winnerId,
         );
     }
 
@@ -187,6 +190,7 @@ final class Auction
             || ($winningAmount !== null && $winningAmount->isGreaterThanOrEqualTo($this->reservePrice));
 
         $finalWinnerId = $reserveMet ? $winnerId : null;
+        $this->winnerId = $finalWinnerId;
 
         $this->record(new AuctionClosed($this->requireId(), $finalWinnerId, $this->currentValue, new DateTimeImmutable()));
     }
@@ -388,5 +392,10 @@ final class Auction
     public function extensionsCount(): int
     {
         return $this->extensionsCount;
+    }
+
+    public function winnerId(): ?int
+    {
+        return $this->winnerId;
     }
 }

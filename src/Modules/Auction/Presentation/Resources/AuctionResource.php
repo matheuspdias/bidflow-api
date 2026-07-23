@@ -38,6 +38,7 @@ final class AuctionResource extends JsonResource
             'participant_count' => $this->auction->participantCount(),
             'view_count' => $this->auction->viewCount(),
             'extensions_count' => $this->auction->extensionsCount(),
+            'winner_id' => $this->auction->winnerId(),
         ];
     }
 }

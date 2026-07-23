@@ -8,7 +8,7 @@ use App\Modules\Auth\Presentation\Controllers\LoginController;
 use App\Modules\Auth\Presentation\Controllers\LogoutController;
 use App\Modules\Auth\Presentation\Controllers\RegisterController;
 use App\Modules\Notification\Presentation\Controllers\NotificationsController;
-use App\Modules\User\Presentation\Controllers\ActivityStubController;
+use App\Modules\User\Presentation\Controllers\ActivityController;
 use App\Modules\User\Presentation\Controllers\AvatarController;
 use App\Modules\User\Presentation\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -29,10 +29,10 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/profile/avatar', [AvatarController::class, 'store'])->middleware('abilities:profile:write');
     Route::delete('/profile/avatar', [AvatarController::class, 'destroy'])->middleware('abilities:profile:write');
 
-    Route::get('/profile/bids', [ActivityStubController::class, 'bidHistory'])->middleware('abilities:profile:read');
-    Route::get('/profile/auctions/won', [ActivityStubController::class, 'auctionsWon'])->middleware('abilities:profile:read');
-    Route::get('/profile/auctions/lost', [ActivityStubController::class, 'auctionsLost'])->middleware('abilities:profile:read');
-    Route::get('/rankings', [ActivityStubController::class, 'rankings'])->middleware('abilities:profile:read');
+    Route::get('/profile/bids', [ActivityController::class, 'bidHistory'])->middleware('abilities:profile:read');
+    Route::get('/profile/auctions/won', [ActivityController::class, 'auctionsWon'])->middleware('abilities:profile:read');
+    Route::get('/profile/auctions/lost', [ActivityController::class, 'auctionsLost'])->middleware('abilities:profile:read');
+    Route::get('/rankings', [ActivityController::class, 'rankings'])->middleware('abilities:profile:read');
 
     Route::middleware('abilities:notifications:read')->group(function (): void {
         Route::get('/notifications', [NotificationsController::class, 'index']);

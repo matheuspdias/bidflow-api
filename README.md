@@ -211,7 +211,7 @@ GET  /api/me                                         (Bearer token)   → 200 { 
 - Todo endpoint autenticado usa `auth:sanctum` + um middleware `abilities:<ability>` checando a habilidade do token.
 - Vocabulário de abilities fixado nesta fase (`App\Modules\Auth\Domain\ValueObjects\TokenAbility`): `bid:place`, `profile:read`, `profile:write`, `auction:manage`, `notifications:read`. Login/registro emitem um token com todas as abilities; tokens mais restritos (ex.: uma integração só-para-lances) poderão ser emitidos depois sem precisar mudar esse vocabulário.
 - Rate limit nomeado `login` (5 tentativas/minuto por `ip+email`) aplicado a `/register` e `/login`.
-- Endpoints de histórico de lances/leilões ganhos/perdidos/ranking (`/api/profile/bids`, `/api/profile/auctions/won`, `/api/profile/auctions/lost`, `/api/rankings`) existem já como **stub**, retornando `{ data: [] }` — implementação real na Fase 12.
+- Endpoints de histórico de lances/leilões ganhos/perdidos/ranking (`/api/profile/bids`, `/api/profile/auctions/won`, `/api/profile/auctions/lost`, `/api/rankings`) — ver [ADR-0016](docs/adr/0016-activity-and-rankings-cross-module-lookups.md) e a seção "Metodologia dos rankings" abaixo.
 
 ## Contrato da tela de leilão ao vivo
 
@@ -238,7 +238,7 @@ A chamada que uma tela de leilão faz uma vez, ao carregar ou reconectar, para t
 
 ## Metodologia dos rankings
 
-*(pendente — Fase 12)*
+`GET /api/rankings` (`?limit=`, default 10, máximo 50) ordena compradores por **número de leilões vencidos** (`auctions.status = 'closed' AND auctions.winner_id = <usuário>`, agrupado, contagem decrescente) — não por lances dados nem valor gasto, que premiariam atividade ou orçamento em vez de efetivamente vencer, que é o número que interessa a quem está olhando o próprio ranking. `winner_id` (Fase 12, retroativo à Fase 11 — `Auction::close()` já decidia o vencedor, mas nunca persistia isso em lugar nenhum consultável) é a fonte de verdade; ver [ADR-0016](docs/adr/0016-activity-and-rankings-cross-module-lookups.md).
 
 ## Métricas do dashboard admin
 
@@ -348,5 +348,6 @@ Cada consumer declara sua própria fila (durável, com `x-dead-letter-exchange` 
 | [0013](docs/adr/0013-recent-bids-redis-feed.md) | Feed de lances recentes via Redis, com fallback para o Postgres |
 | [0014](docs/adr/0014-anti-sniping-and-synchronized-timer.md) | Anti-sniping e timer sincronizado |
 | [0015](docs/adr/0015-auction-closing-and-notifications.md) | Encerramento de leilão, vencedor e notificações |
+| [0016](docs/adr/0016-activity-and-rankings-cross-module-lookups.md) | Histórico, ganhos/perdas e rankings via contratos cross-module |
 
 *(demais ADRs adicionadas conforme as fases avançam)*

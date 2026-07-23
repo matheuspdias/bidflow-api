@@ -35,6 +35,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'view_count',
     'highest_bid_id',
     'extensions_count',
+    'winner_id',
 ])]
 class Auction extends Model
 {

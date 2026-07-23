@@ -14,6 +14,9 @@ use App\Modules\Auction\Domain\Events\UserLeftAuction;
 use App\Modules\Auction\Domain\Repositories\AuctionRepository;
 use App\Modules\Auction\Domain\Repositories\BidAuditLogRepository;
 use App\Modules\Auction\Domain\Repositories\BidRepository;
+use App\Modules\Auction\Infrastructure\Adapters\BidHistoryLookupAdapter;
+use App\Modules\Auction\Infrastructure\Adapters\BuyerRankingLookupAdapter;
+use App\Modules\Auction\Infrastructure\Adapters\WonLostAuctionsLookupAdapter;
 use App\Modules\Auction\Infrastructure\Console\AuctionClosingCommand;
 use App\Modules\Auction\Infrastructure\Console\AuctionTimerBroadcastCommand;
 use App\Modules\Auction\Infrastructure\Console\Consumers\BroadcastAuctionEndedConsumer;
@@ -37,6 +40,9 @@ use App\Modules\Auction\Infrastructure\Listeners\TrackPresenceChannelMembership;
 use App\Modules\Auction\Infrastructure\Repositories\EloquentAuctionRepository;
 use App\Modules\Auction\Infrastructure\Repositories\EloquentBidAuditLogRepository;
 use App\Modules\Auction\Infrastructure\Repositories\EloquentBidRepository;
+use App\Shared\Domain\Contracts\BidHistoryLookup;
+use App\Shared\Domain\Contracts\BuyerRankingLookup;
+use App\Shared\Domain\Contracts\WonLostAuctionsLookup;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Reverb\Events\ChannelCreated;
@@ -50,6 +56,9 @@ class AuctionServiceProvider extends ServiceProvider
         $this->app->bind(AuctionRepository::class, EloquentAuctionRepository::class);
         $this->app->bind(BidRepository::class, EloquentBidRepository::class);
         $this->app->bind(BidAuditLogRepository::class, EloquentBidAuditLogRepository::class);
+        $this->app->bind(BidHistoryLookup::class, BidHistoryLookupAdapter::class);
+        $this->app->bind(WonLostAuctionsLookup::class, WonLostAuctionsLookupAdapter::class);
+        $this->app->bind(BuyerRankingLookup::class, BuyerRankingLookupAdapter::class);
     }
 
     public function boot(): void
