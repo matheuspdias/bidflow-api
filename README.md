@@ -308,7 +308,9 @@ git clone [<repo>](https://github.com/matheuspdias/bidflow-api.git)
 cd bidflow-api
 cp .env.example .env
 
-# build + sobe todos os serviços
+# build + sobe todos os serviços — nesse primeiro up, reverb/horizon/consumers/"relógios"
+# ainda vão reiniciar em loop: falta vendor/ (composer ainda não rodou) e o exchange do
+# RabbitMQ (rabbitmq:setup ainda não rodou). Normal, os próximos passos resolvem.
 docker compose up -d --build
 
 # instala dependências e gera a chave da aplicação
@@ -321,6 +323,14 @@ docker compose exec app php artisan migrate
 # expõe o disco público (avatares de usuário, fotos de leilão)
 docker compose exec app php artisan storage:link
 
+# declara o exchange topic domain_events e o dead-letter domain_events.dlx no RabbitMQ
+# (idempotente — seguro rodar de novo em qualquer redeploy)
+docker compose exec app php artisan rabbitmq:setup
+
+# agora que vendor/ existe e o exchange foi declarado, sobe de novo os serviços que
+# tinham saído no primeiro up (reverb, horizon, consumers, "relógios")
+docker compose up -d
+
 # roda a suíte de testes
 docker compose exec app php artisan test
 
@@ -328,7 +338,7 @@ docker compose exec app php artisan test
 docker compose exec app ./vendor/bin/phpstan analyse
 ```
 
-A API fica disponível em `http://localhost:8000` (porta configurável via `APP_PORT` no `.env`).
+A API fica disponível em `http://localhost:8000` (porta configurável via `APP_PORT` no `.env`). Depois do setup inicial, confira que os 19 serviços estão `Up` com `docker compose ps`.
 
 ### Serviços do Docker Compose
 
